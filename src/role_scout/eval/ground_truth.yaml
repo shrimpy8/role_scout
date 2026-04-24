@@ -1,0 +1,599 @@
+- hash_id: "0000000000000001"
+  jd_text: "Staff ML Engineer at Acme AI. Lead ML platform, 7+ yrs exp, Python/distributed systems. $200-280k + equity."
+  human_score: 92
+  human_subscores:
+    comp_score: 9
+    role_fit: 9
+    remote_score: 5
+    domain_score: 9
+    seniority_score: 9
+  human_rationale: "Strong ML infrastructure role matching distributed systems experience, excellent compensation."
+  edge_case_tag: staff_principal
+
+- hash_id: "0000000000000002"
+  jd_text: "Principal Engineer at QuantumLeap. Define technical strategy, 10+ yrs exp, systems design. $240-320k + equity. Remote-friendly."
+  human_score: 88
+  human_subscores:
+    comp_score: 10
+    role_fit: 9
+    remote_score: 8
+    domain_score: 8
+    seniority_score: 9
+  human_rationale: "Principal-level scope with strong comp and remote flexibility; domain is adjacent but not core."
+  edge_case_tag: staff_principal
+
+- hash_id: "0000000000000003"
+  jd_text: "Senior Software Engineer, Infrastructure at NovaCorp. Kubernetes, Terraform, Go/Python, 5+ yrs. No comp listed. Hybrid SF."
+  human_score: 62
+  human_subscores:
+    comp_score: 0
+    role_fit: 7
+    remote_score: 4
+    domain_score: 7
+    seniority_score: 8
+  human_rationale: "Solid infra role but no compensation listed and hybrid-only lowers appeal significantly."
+  edge_case_tag: no_comp
+
+- hash_id: "0000000000000004"
+  jd_text: "ML Platform Engineer at DataDriven Inc. Build feature stores and training pipelines, 4+ yrs exp, Python/Spark. Salary withheld."
+  human_score: 55
+  human_subscores:
+    comp_score: 0
+    role_fit: 7
+    remote_score: 5
+    domain_score: 7
+    seniority_score: 6
+  human_rationale: "Decent ML platform work but withheld comp is a red flag; mid-level seniority ceiling."
+  edge_case_tag: no_comp
+
+- hash_id: "0000000000000005"
+  jd_text: "Backend Engineer at FinTech Startup. Build payment APIs, 3-5 yrs exp, Java/Spring, on-site NYC required. No salary listed."
+  human_score: 30
+  human_subscores:
+    comp_score: 0
+    role_fit: 3
+    remote_score: 1
+    domain_score: 3
+    seniority_score: 4
+  human_rationale: "Wrong domain (payments/fintech), on-site NYC, no comp — fails on multiple dimensions."
+  edge_case_tag: no_comp
+
+- hash_id: "0000000000000006"
+  jd_text: "Fully Remote Senior ML Engineer at CloudAI. Distributed training, LLM fine-tuning, 5+ yrs, Python/PyTorch. $170-220k."
+  human_score: 85
+  human_subscores:
+    comp_score: 8
+    role_fit: 9
+    remote_score: 10
+    domain_score: 9
+    seniority_score: 8
+  human_rationale: "Fully remote LLM work with strong compensation — highly aligned with target profile."
+  edge_case_tag: remote
+
+- hash_id: "0000000000000007"
+  jd_text: "Staff Data Scientist — Remote at InsightCo. Causal inference, experimentation platforms, 7+ yrs, Python/R. $190-250k + equity."
+  human_score: 78
+  human_subscores:
+    comp_score: 9
+    role_fit: 7
+    remote_score: 10
+    domain_score: 7
+    seniority_score: 9
+  human_rationale: "Remote staff-level role with great comp; data science is adjacent, not pure ML engineering."
+  edge_case_tag: remote
+
+- hash_id: "0000000000000008"
+  jd_text: "ML Engineer at EarlyStageAI. Promising seed-stage startup, 3+ yrs, full-stack ML, Python. $130-160k, significant equity."
+  human_score: 68
+  human_subscores:
+    comp_score: 6
+    role_fit: 8
+    remote_score: 5
+    domain_score: 8
+    seniority_score: 5
+  human_rationale: "Interesting ML scope but base comp and seniority level are below target; equity upside uncertain."
+  edge_case_tag: watchlist
+
+- hash_id: "0000000000000009"
+  jd_text: "Senior Platform Engineer at GrowthCo. DevOps-heavy, CI/CD, AWS, 5+ yrs. Comp undisclosed. Potential ML adjacency."
+  human_score: 45
+  human_subscores:
+    comp_score: 0
+    role_fit: 4
+    remote_score: 5
+    domain_score: 4
+    seniority_score: 6
+  human_rationale: "Mostly DevOps with only tangential ML connection; no comp disclosure makes it a borderline reject."
+  edge_case_tag: watchlist
+
+- hash_id: "000000000000000a"
+  jd_text: "Junior Data Analyst at RetailCorp. SQL, Excel, Tableau, 0-2 yrs exp. On-site Chicago. $55-70k."
+  human_score: 32
+  human_subscores:
+    comp_score: 2
+    role_fit: 2
+    remote_score: 1
+    domain_score: 2
+    seniority_score: 1
+  human_rationale: "Junior analyst role in wrong domain, wrong city, far below target comp and seniority."
+  edge_case_tag: reject
+
+- hash_id: "000000000000000b"
+  jd_text: "Marketing Engineer at AdTech Inc. Campaign analytics, Python scripting, 2+ yrs. On-site Austin. $90-110k."
+  human_score: 38
+  human_subscores:
+    comp_score: 3
+    role_fit: 2
+    remote_score: 1
+    domain_score: 2
+    seniority_score: 3
+  human_rationale: "Marketing domain with light engineering, on-site only, low comp — clear reject."
+  edge_case_tag: reject
+
+- hash_id: "000000000000000c"
+  jd_text: "IT Support Engineer at BigBank. Windows administration, helpdesk, 2+ yrs. $60-80k. On-site NYC."
+  human_score: 33
+  human_subscores:
+    comp_score: 2
+    role_fit: 1
+    remote_score: 1
+    domain_score: 1
+    seniority_score: 2
+  human_rationale: "Completely misaligned role — IT support, wrong domain, low comp, on-site."
+  edge_case_tag: reject
+
+- hash_id: "000000000000000d"
+  jd_text: "Staff ML Engineer at GlobalTech London. ML systems design, 8+ yrs, Python/C++. £150-200k + equity. London HQ required."
+  human_score: 58
+  human_subscores:
+    comp_score: 7
+    role_fit: 9
+    remote_score: 2
+    domain_score: 9
+    seniority_score: 9
+  human_rationale: "Excellent role fit and comp in GBP, but London relocation required is a major constraint."
+  edge_case_tag: non_sf
+
+- hash_id: "000000000000000e"
+  jd_text: "Senior ML Engineer at EuroAI Berlin. LLM deployment, inference optimization, 6+ yrs, Python/Rust. €130-170k. Berlin office."
+  human_score: 52
+  human_subscores:
+    comp_score: 6
+    role_fit: 8
+    remote_score: 2
+    domain_score: 9
+    seniority_score: 8
+  human_rationale: "Strong technical alignment and interesting LLM focus, but Berlin-only is a dealbreaker without relocation."
+  edge_case_tag: non_sf
+
+- hash_id: "000000000000000f"
+  jd_text: "Machine Learning Engineer at Stealth AI Startup. Vague description, cutting-edge research, competitive comp, 5+ yrs."
+  human_score: 50
+  human_subscores:
+    comp_score: 5
+    role_fit: 6
+    remote_score: 5
+    domain_score: 6
+    seniority_score: 6
+  human_rationale: "Insufficient information to score confidently — vague JD with unverifiable claims warrants a neutral mid-range score."
+  edge_case_tag: null
+
+- hash_id: "0000000000000010"
+  jd_text: "Senior ML Engineer at Anthropic. RLHF, safety research, LLM training, 5+ yrs, Python/JAX. $200-300k + equity. SF hybrid."
+  human_score: 91
+  human_subscores:
+    comp_score: 10
+    role_fit: 9
+    remote_score: 5
+    domain_score: 10
+    seniority_score: 9
+  human_rationale: "Premier LLM safety company with top comp; hybrid SF is acceptable given mission alignment."
+  edge_case_tag: watchlist
+
+- hash_id: "0000000000000011"
+  jd_text: "ML Infrastructure Engineer at Scale AI. Build training infra, 5+ yrs, Python/CUDA, Kubernetes. $190-240k. SF or remote."
+  human_score: 87
+  human_subscores:
+    comp_score: 9
+    role_fit: 9
+    remote_score: 7
+    domain_score: 9
+    seniority_score: 8
+  human_rationale: "High-impact ML infra at leading AI data company, strong comp, flexible location."
+  edge_case_tag: null
+
+- hash_id: "0000000000000012"
+  jd_text: "Staff AI/ML Engineer at Stripe. ML platform for payments, 7+ yrs, Python/Go. $220-280k + equity. SF preferred."
+  human_score: 84
+  human_subscores:
+    comp_score: 10
+    role_fit: 8
+    remote_score: 5
+    domain_score: 8
+    seniority_score: 9
+  human_rationale: "Excellent comp at top-tier company; payments domain is adjacent but ML infra scope is solid."
+  edge_case_tag: watchlist
+
+- hash_id: "0000000000000013"
+  jd_text: "Senior Research Engineer at OpenAI. Foundation model training, 5+ yrs, Python/C++/CUDA. Competitive comp. SF on-site."
+  human_score: 89
+  human_subscores:
+    comp_score: 9
+    role_fit: 9
+    remote_score: 3
+    domain_score: 10
+    seniority_score: 8
+  human_rationale: "Top LLM research with excellent domain alignment; on-site SF is manageable."
+  edge_case_tag: null
+
+- hash_id: "0000000000000014"
+  jd_text: "ML Engineer at Cohere. LLM deployment, fine-tuning, inference, 4+ yrs, Python. $160-210k. Remote-first."
+  human_score: 83
+  human_subscores:
+    comp_score: 8
+    role_fit: 9
+    remote_score: 10
+    domain_score: 9
+    seniority_score: 7
+  human_rationale: "Fully remote LLM work at a leading AI company; comp slightly below target but domain is ideal."
+  edge_case_tag: remote
+
+- hash_id: "0000000000000015"
+  jd_text: "Senior ML Engineer at Waymo. Autonomous driving perception, 6+ yrs, C++/Python, real-time systems. $200-260k. Mountain View on-site."
+  human_score: 72
+  human_subscores:
+    comp_score: 10
+    role_fit: 7
+    remote_score: 2
+    domain_score: 7
+    seniority_score: 8
+  human_rationale: "Strong comp and senior scope but autonomous driving domain is narrow; on-site only."
+  edge_case_tag: non_sf
+
+- hash_id: "0000000000000016"
+  jd_text: "Platform Engineer at GitHub. Developer tooling, CI/CD, Ruby/Go/Python, 5+ yrs. $180-230k. Remote ok."
+  human_score: 65
+  human_subscores:
+    comp_score: 9
+    role_fit: 6
+    remote_score: 8
+    domain_score: 6
+    seniority_score: 7
+  human_rationale: "Remote with good comp but not ML-focused — tooling/devops work is too far from target domain."
+  edge_case_tag: null
+
+- hash_id: "0000000000000017"
+  jd_text: "Senior Data Engineer at Shopify. ETL pipelines, dbt, Spark, 5+ yrs, Python/SQL. $160-200k. Remote."
+  human_score: 60
+  human_subscores:
+    comp_score: 8
+    role_fit: 5
+    remote_score: 9
+    domain_score: 5
+    seniority_score: 7
+  human_rationale: "Data engineering is adjacent but no ML component; remote and decent comp partially compensate."
+  edge_case_tag: null
+
+- hash_id: "0000000000000018"
+  jd_text: "Applied Scientist at Amazon. Recommendation systems, 5+ yrs, Python/Scala. $180-240k + equity. Seattle preferred."
+  human_score: 77
+  human_subscores:
+    comp_score: 9
+    role_fit: 7
+    remote_score: 4
+    domain_score: 8
+    seniority_score: 7
+  human_rationale: "Solid ML scope and comp; Seattle preference lowers appeal but remote negotiable for right candidate."
+  edge_case_tag: null
+
+- hash_id: "0000000000000019"
+  jd_text: "ML Ops Engineer at Hugging Face. Model serving, CI/CD for ML, 4+ yrs, Python/Docker. $150-190k. Fully remote."
+  human_score: 80
+  human_subscores:
+    comp_score: 7
+    role_fit: 8
+    remote_score: 10
+    domain_score: 9
+    seniority_score: 7
+  human_rationale: "Ideal domain (OSS ML ecosystem), fully remote, comp at lower end of target range."
+  edge_case_tag: remote
+
+- hash_id: "000000000000001a"
+  jd_text: "AI Research Scientist at Meta FAIR. Multimodal models, publications expected, 4+ yrs, Python/PyTorch. $200-280k. Menlo Park."
+  human_score: 75
+  human_subscores:
+    comp_score: 10
+    role_fit: 7
+    remote_score: 3
+    domain_score: 9
+    seniority_score: 7
+  human_rationale: "Top-tier LLM research and compensation; research science role differs from engineering; on-site."
+  edge_case_tag: null
+
+- hash_id: "000000000000001b"
+  jd_text: "Senior AI Platform Engineer at Databricks. ML runtimes, GPU scheduling, 6+ yrs, Scala/Python. $200-260k. SF hybrid."
+  human_score: 86
+  human_subscores:
+    comp_score: 10
+    role_fit: 9
+    remote_score: 5
+    domain_score: 9
+    seniority_score: 8
+  human_rationale: "Exactly the ML infrastructure scope at a top data+AI company; strong comp, manageable SF hybrid."
+  edge_case_tag: null
+
+- hash_id: "000000000000001c"
+  jd_text: "ML Engineer at Robinhood. Risk scoring models, 4+ yrs, Python/Airflow. $150-190k. Menlo Park on-site."
+  human_score: 58
+  human_subscores:
+    comp_score: 7
+    role_fit: 6
+    remote_score: 2
+    domain_score: 5
+    seniority_score: 6
+  human_rationale: "Fintech risk scoring is a domain mismatch; on-site only and comp below target."
+  edge_case_tag: null
+
+- hash_id: "000000000000001d"
+  jd_text: "Senior ML Engineer, Recommendations at Netflix. Personalization algorithms, 5+ yrs, Python/Spark. $200-280k. Los Gatos on-site."
+  human_score: 79
+  human_subscores:
+    comp_score: 10
+    role_fit: 8
+    remote_score: 2
+    domain_score: 8
+    seniority_score: 8
+  human_rationale: "Excellent comp and strong ML scope; recommendations domain adjacent; on-site is a constraint."
+  edge_case_tag: null
+
+- hash_id: "000000000000001e"
+  jd_text: "Staff ML Engineer at Cruise. Autonomous vehicles, perception + prediction, 8+ yrs, C++/Python. $240-320k. SF on-site."
+  human_score: 71
+  human_subscores:
+    comp_score: 10
+    role_fit: 8
+    remote_score: 2
+    domain_score: 7
+    seniority_score: 10
+  human_rationale: "Top comp and senior scope; AV perception domain requires specialized expertise; on-site only."
+  edge_case_tag: staff_principal
+
+- hash_id: "000000000000001f"
+  jd_text: "Research Engineer at DeepMind London. AGI safety, multiagent systems, 5+ yrs, Python/JAX. Competitive. London required."
+  human_score: 64
+  human_subscores:
+    comp_score: 7
+    role_fit: 8
+    remote_score: 1
+    domain_score: 9
+    seniority_score: 8
+  human_rationale: "Dream role technically but London relocation is prohibitive; safety domain is ideal."
+  edge_case_tag: non_sf
+
+- hash_id: "0000000000000020"
+  jd_text: "Senior MLOps Engineer at Lyft. Model deployment, feature store, A/B testing infrastructure, 5+ yrs. $170-220k. SF hybrid."
+  human_score: 82
+  human_subscores:
+    comp_score: 8
+    role_fit: 9
+    remote_score: 5
+    domain_score: 8
+    seniority_score: 8
+  human_rationale: "Strong MLOps scope at a major tech company; comp and SF hybrid are acceptable."
+  edge_case_tag: null
+
+- hash_id: "0000000000000021"
+  jd_text: "Data Scientist — Biotech at Genentech. Drug discovery ML, 4+ yrs, Python/R. $140-180k. South SF on-site."
+  human_score: 48
+  human_subscores:
+    comp_score: 6
+    role_fit: 5
+    remote_score: 2
+    domain_score: 4
+    seniority_score: 6
+  human_rationale: "Biotech ML is interesting domain but comp below target, on-site, and biology domain mismatch."
+  edge_case_tag: null
+
+- hash_id: "0000000000000022"
+  jd_text: "ML Engineer — NLP at Grammarly. Text models, grammar/style, 4+ yrs, Python/Transformers. $160-210k. Remote-first."
+  human_score: 76
+  human_subscores:
+    comp_score: 8
+    role_fit: 8
+    remote_score: 9
+    domain_score: 8
+    seniority_score: 7
+  human_rationale: "NLP/transformer work aligned with LLM experience; remote-first and decent comp."
+  edge_case_tag: remote
+
+- hash_id: "0000000000000023"
+  jd_text: "Staff Software Engineer — ML at LinkedIn. Job recommendations, learning systems, 7+ yrs, Java/Python. $220-280k. Sunnyvale hybrid."
+  human_score: 76
+  human_subscores:
+    comp_score: 10
+    role_fit: 7
+    remote_score: 4
+    domain_score: 7
+    seniority_score: 9
+  human_rationale: "Top comp at staff level; LinkedIn/recommendations domain is adjacent; hybrid acceptable."
+  edge_case_tag: watchlist
+
+- hash_id: "0000000000000024"
+  jd_text: "Senior AI Engineer at Salesforce. CRM AI features, Einstein platform, 5+ yrs, Python/Apex. $180-240k. SF hybrid."
+  human_score: 67
+  human_subscores:
+    comp_score: 9
+    role_fit: 7
+    remote_score: 5
+    domain_score: 6
+    seniority_score: 7
+  human_rationale: "Good comp and SF location; CRM AI is narrow domain; Apex/Salesforce-specific work limits scope."
+  edge_case_tag: null
+
+- hash_id: "0000000000000025"
+  jd_text: "AI Safety Engineer at Redwood Research. Mechanistic interpretability, 3+ yrs, Python/PyTorch. $120-160k. Berkeley on-site."
+  human_score: 55
+  human_subscores:
+    comp_score: 4
+    role_fit: 7
+    remote_score: 3
+    domain_score: 8
+    seniority_score: 5
+  human_rationale: "Fascinating mission but below-market comp; research-focused, on-site Berkeley."
+  edge_case_tag: null
+
+- hash_id: "0000000000000026"
+  jd_text: "ML Platform Engineer at Airbnb. Feature platform, ML serving infra, 5+ yrs, Python/Java/Spark. $180-240k. SF hybrid."
+  human_score: 83
+  human_subscores:
+    comp_score: 9
+    role_fit: 9
+    remote_score: 5
+    domain_score: 8
+    seniority_score: 8
+  human_rationale: "ML platform scope at a top consumer tech company; strong comp; SF hybrid is workable."
+  edge_case_tag: null
+
+- hash_id: "0000000000000027"
+  jd_text: "Senior Engineer, AI Infrastructure at Oracle. Cloud ML services, 6+ yrs, Python/Java. $170-220k. Austin on-site."
+  human_score: 47
+  human_subscores:
+    comp_score: 7
+    role_fit: 7
+    remote_score: 1
+    domain_score: 7
+    seniority_score: 7
+  human_rationale: "Relevant ML infra scope but Oracle brand and Austin on-site requirement are strong negatives."
+  edge_case_tag: non_sf
+
+- hash_id: "0000000000000028"
+  jd_text: "Principal ML Engineer at Figma. AI design features, collaborative AI, 8+ yrs, Python/TypeScript. $240-320k + equity. SF hybrid."
+  human_score: 81
+  human_subscores:
+    comp_score: 10
+    role_fit: 8
+    remote_score: 5
+    domain_score: 8
+    seniority_score: 10
+  human_rationale: "Principal-level with excellent comp; design AI is a novel domain fit; SF hybrid manageable."
+  edge_case_tag: staff_principal
+
+- hash_id: "0000000000000029"
+  jd_text: "Founding ML Engineer at Series A startup (stealth). Build LLM product from scratch, 5+ yrs, Python. Uncapped equity. Remote."
+  human_score: 70
+  human_subscores:
+    comp_score: 5
+    role_fit: 9
+    remote_score: 10
+    domain_score: 9
+    seniority_score: 8
+  human_rationale: "Remote LLM founding role is exciting; equity-heavy comp is a risk; stealth makes due diligence hard."
+  edge_case_tag: null
+
+- hash_id: "000000000000002a"
+  jd_text: "ML Compiler Engineer at NVIDIA. CUDA compiler, kernel optimization, 6+ yrs, C++/Python/MLIR. $220-300k. Santa Clara on-site."
+  human_score: 63
+  human_subscores:
+    comp_score: 10
+    role_fit: 7
+    remote_score: 2
+    domain_score: 8
+    seniority_score: 8
+  human_rationale: "Top comp and interesting ML compilers domain; strong C++ requirement is stretch; on-site."
+  edge_case_tag: null
+
+- hash_id: "000000000000002b"
+  jd_text: "Senior ML Engineer — Vision at Apple. On-device ML, CoreML, 6+ yrs, Swift/Python, privacy-first. $210-270k. Cupertino on-site."
+  human_score: 69
+  human_subscores:
+    comp_score: 10
+    role_fit: 7
+    remote_score: 1
+    domain_score: 7
+    seniority_score: 8
+  human_rationale: "Excellent comp and senior scope; on-device CV is adjacent domain; Apple's on-site culture is a constraint."
+  edge_case_tag: null
+
+- hash_id: "000000000000002c"
+  jd_text: "Staff ML Engineer at Twilio. Conversational AI, voice/text ML, 7+ yrs, Python. $200-260k. SF or remote."
+  human_score: 82
+  human_subscores:
+    comp_score: 9
+    role_fit: 8
+    remote_score: 7
+    domain_score: 8
+    seniority_score: 9
+  human_rationale: "Conversational AI scope is closely aligned; staff-level comp; flexible location policy."
+  edge_case_tag: null
+
+- hash_id: "000000000000002d"
+  jd_text: "AI Product Engineer at Notion. AI writing tools, LLM integration, 4+ yrs, Python/TypeScript. $160-210k. SF hybrid."
+  human_score: 74
+  human_subscores:
+    comp_score: 8
+    role_fit: 7
+    remote_score: 5
+    domain_score: 8
+    seniority_score: 6
+  human_rationale: "LLM product work at a hot startup; seniority level slightly below target; comp and location ok."
+  edge_case_tag: null
+
+- hash_id: "000000000000002e"
+  jd_text: "Quantitative Developer at Two Sigma. Alpha signals, HFT infrastructure, 5+ yrs, C++/Python. $300-400k+. NYC on-site."
+  human_score: 36
+  human_subscores:
+    comp_score: 10
+    role_fit: 2
+    remote_score: 1
+    domain_score: 2
+    seniority_score: 7
+  human_rationale: "Exceptional comp but finance/HFT domain is completely misaligned; NYC on-site required."
+  edge_case_tag: reject
+
+- hash_id: "000000000000002f"
+  jd_text: "Senior Engineer — Embedded Systems at Qualcomm. DSP/FPGA, real-time OS, 6+ yrs, C/C++. $170-220k. San Diego on-site."
+  human_score: 30
+  human_subscores:
+    comp_score: 7
+    role_fit: 2
+    remote_score: 1
+    domain_score: 2
+    seniority_score: 7
+  human_rationale: "Hardware/embedded domain is completely mismatched; San Diego on-site; skills don't transfer."
+  edge_case_tag: reject
+
+- hash_id: "0000000000000030"
+  jd_text: "ML Engineer — Search Ranking at Elastic. Elasticsearch, learning-to-rank, 4+ yrs, Python/Java. $160-200k. Remote ok."
+  human_score: 71
+  human_subscores:
+    comp_score: 7
+    role_fit: 7
+    remote_score: 8
+    domain_score: 7
+    seniority_score: 6
+  human_rationale: "Search ML is adjacent and remote is ok; comp slightly below range; interesting technical scope."
+  edge_case_tag: null
+
+- hash_id: "0000000000000031"
+  jd_text: "Sr. AI Engineer, Copilot at Microsoft. GitHub Copilot models, code generation, 6+ yrs, Python/C#. $190-250k. Seattle or remote."
+  human_score: 86
+  human_subscores:
+    comp_score: 9
+    role_fit: 9
+    remote_score: 7
+    domain_score: 9
+    seniority_score: 8
+  human_rationale: "Code generation LLM work at major scale; strong domain fit; remote-eligible with solid comp."
+  edge_case_tag: null
+
+- hash_id: "0000000000000032"
+  jd_text: "ML Reliability Engineer at DoorDash. Model monitoring, data quality, incident response, 4+ yrs. $150-200k. SF on-site."
+  human_score: 62
+  human_subscores:
+    comp_score: 7
+    role_fit: 6
+    remote_score: 2
+    domain_score: 6
+    seniority_score: 6
+  human_rationale: "MLOps/reliability focus at food delivery company; on-site; domain and seniority below target."
+  edge_case_tag: null

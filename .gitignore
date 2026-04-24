@@ -1,0 +1,50 @@
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Test & lint caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Runtime output
+shadow_diffs/
+eval/reports/
+jd_exports/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Internal planning & workflow docs (not for public consumption)
+# Keep: PRD-CORE, SPEC, TECH-DESIGN, EXP-BRIEF, API-SPEC, DATA-MODEL, MCP-SCHEMAS, TEST-PLAN, PHASE2-AGENTIC-PLAN
+docs/notes.md
+docs/notes2.md
+docs/PHASE2_SESSION-HANDOVER.md
+docs/FEATURE_STATUS.md
+docs/DEVELOPMENT_TODOS.md
+AgenticJobSearchPipeline.md
+
+# Resume / personal candidate data
+prompts/resume_summary.md
+prompts/candidate_profile.json

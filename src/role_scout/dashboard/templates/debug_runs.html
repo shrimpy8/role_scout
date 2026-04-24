@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Debug — Run History — Role Scout{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <h2 class="mb-3">Run History</h2>
+  <p class="text-muted small mb-3">Most recent pipeline runs. Polling is paused on this page.</p>
+
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle" id="runs-table">
+      <thead class="table-dark">
+        <tr>
+          <th>Run ID</th>
+          <th>Status</th>
+          <th>Trigger</th>
+          <th>Qualified</th>
+          <th>Cost (USD)</th>
+          <th>Started</th>
+        </tr>
+      </thead>
+      <tbody id="runs-tbody">
+        <tr id="runs-loading">
+          <td colspan="6" class="text-center text-muted py-4">Loading…</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mt-2">
+    <span class="text-muted small" id="runs-count"></span>
+    <button id="load-more-btn" class="btn btn-outline-secondary btn-sm" hidden>Load more</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  'use strict';
+
+  const PAGE_SIZE = 10;
+  let currentOffset = 0;
+  let totalRuns = null;
+
+  function escHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function formatDate(iso) {
+    if (!iso) return '—';
+    try {
+      return new Date(iso).toLocaleString();
+    } catch (e) {
+      return escHtml(iso);
+    }
+  }
+
+  function statusBadgeClass(status) {
+    const map = {
+      completed: 'bg-success',
+      failed: 'bg-danger',
+      running: 'bg-primary',
+      review_pending: 'bg-warning text-dark',
+      cancelled: 'bg-secondary',
+    };
+    return map[status] || 'bg-secondary';
+  }
+
+  function renderRows(runs) {
+    const tbody = document.getElementById('runs-tbody');
+    const loading = document.getElementById('runs-loading');
+    if (loading) loading.remove();
+
+    if (runs.length === 0 && currentOffset === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No runs recorded yet.</td></tr>';
+      return;
+    }
+
+    runs.forEach(function (r) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="font-monospace small">${escHtml((r.run_id || '').slice(0, 8))}</td>
+        <td><span class="badge ${statusBadgeClass(r.status)}">${escHtml(r.status)}</span></td>
+        <td>${escHtml(r.trigger_type || '—')}</td>
+        <td>${escHtml(r.qualified_count ?? r.total_qualified ?? '—')}</td>
+        <td>${r.estimated_cost_usd != null ? '$' + Number(r.estimated_cost_usd).toFixed(4) : '—'}</td>
+        <td class="small">${formatDate(r.started_at)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function updateCountLabel() {
+    const el = document.getElementById('runs-count');
+    if (!el || totalRuns === null) return;
+    el.textContent = `Showing ${Math.min(currentOffset, totalRuns)} of ${totalRuns} runs`;
+  }
+
+  async function loadRuns() {
+    const btn = document.getElementById('load-more-btn');
+    if (btn) btn.disabled = true;
+
+    try {
+      const resp = await fetch(`/api/runs?limit=${PAGE_SIZE}&offset=${currentOffset}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+
+      totalRuns = data.total;
+      currentOffset += data.data.length;
+
+      renderRows(data.data);
+      updateCountLabel();
+
+      if (btn) {
+        if (currentOffset < totalRuns) {
+          btn.hidden = false;
+          btn.disabled = false;
+        } else {
+          btn.hidden = true;
+        }
+      }
+    } catch (e) {
+      const tbody = document.getElementById('runs-tbody');
+      const loading = document.getElementById('runs-loading');
+      if (loading) loading.remove();
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td colspan="6" class="text-danger text-center py-3">Failed to load runs: ${escHtml(e.message)}</td>`;
+      tbody.appendChild(tr);
+    }
+  }
+
+  document.getElementById('load-more-btn')?.addEventListener('click', loadRuns);
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadRuns);
+  } else {
+    loadRuns();
+  }
+})();
+</script>
+{% endblock %}
