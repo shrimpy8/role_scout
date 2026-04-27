@@ -6,10 +6,10 @@ import time
 from typing import Any
 
 import structlog
+
 from role_scout.compat.models import CandidateProfile, NormalizedJob
 from role_scout.compat.pipeline.dedup import dedup_jobs
 from role_scout.compat.pipeline.normalize import normalize_jobs
-
 from role_scout.config import Settings
 from role_scout.dal.run_log_dal import write_source_health
 from role_scout.db import get_rw_conn
@@ -65,7 +65,7 @@ async def _gather_sources(
 
     if "trueup" not in skipped_sources:
         tasks.append(
-            _fetch_one("trueup", run_trueup, settings.IMAP_EMAIL, settings.IMAP_APP_PASSWORD)
+            _fetch_one("trueup", run_trueup, settings.IMAP_USER, settings.IMAP_PASSWORD, settings.IMAP_FOLDER)
         )
     else:
         bound_log.warning("source_skipped", source="trueup")

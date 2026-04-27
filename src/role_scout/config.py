@@ -27,8 +27,9 @@ class Settings(BaseSettings):
     # ---- Pipeline-only keys (not required for dashboard-only operation) ----
     SERPAPI_KEY: str | None = None
     APIFY_TOKEN: str | None = None
-    IMAP_EMAIL: str | None = None
-    IMAP_APP_PASSWORD: str | None = None
+    IMAP_USER: str | None = None
+    IMAP_PASSWORD: str | None = None
+    IMAP_FOLDER: str = "INBOX"
 
     # ---- Optional eval keys (only required when running evals) ----
     OPENAI_API_KEY: str | None = None

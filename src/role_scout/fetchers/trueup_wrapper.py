@@ -9,14 +9,16 @@ import time
 from typing import Any
 
 import structlog
+
 from role_scout.compat.fetchers.trueup import fetch_trueup
 
 log = structlog.get_logger()
 
 
 def run_trueup(
-    imap_email: str,
+    imap_user: str,
     imap_password: str,
+    imap_folder: str = "INBOX",
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Synchronous TrueUp IMAP fetch. Returns (raw_jobs, query_params).
 
@@ -25,19 +27,20 @@ def run_trueup(
     """
     query_params: dict[str, Any] = {
         "host": "imap.gmail.com",
-        "folder": "INBOX",
+        "folder": imap_folder,
         "max_emails": 3,
     }
     t0 = time.monotonic()
     try:
         raw = fetch_trueup(
-            user=imap_email,
+            user=imap_user,
             password=imap_password,
+            folder=imap_folder,
         )
         duration = time.monotonic() - t0
         log.info("trueup_fetch_done", count=len(raw), duration_s=round(duration, 2))
         return raw, query_params
-    except Exception as exc:
+    except Exception:
         duration = time.monotonic() - t0
         log.exception("trueup_fetch_failed", duration_s=round(duration, 2))
         raise
