@@ -1,7 +1,6 @@
 """Enrich NormalizedJob descriptions by fetching the source URL."""
 
 import json as _json
-import re
 
 import httpx
 from bs4 import BeautifulSoup

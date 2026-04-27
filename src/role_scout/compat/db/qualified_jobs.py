@@ -2,7 +2,7 @@
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from role_scout.compat.models import ScoredJob
@@ -61,7 +61,7 @@ def insert_qualified_job(conn: sqlite3.Connection, job: ScoredJob) -> None:
             json.dumps(job.domain_tags),
             job.status, job.jd_filename,
             int(job.jd_downloaded),
-            job.scored_at.isoformat() if job.scored_at else datetime.utcnow().isoformat(),
+            job.scored_at.isoformat() if job.scored_at else datetime.now(UTC).isoformat(),
             job.fetched_at.isoformat() if job.fetched_at else None,
             job.run_id,
         ),

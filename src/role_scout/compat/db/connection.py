@@ -116,7 +116,7 @@ def init_db(db_path: str = "output/jobsearch.db") -> None:
             try:
                 conn.execute(migration)
                 conn.commit()
-            except Exception:
+            except sqlite3.OperationalError:
                 pass  # Column already exists — idempotent
         logger.info("db_initialised", path=db_path)
     finally:
