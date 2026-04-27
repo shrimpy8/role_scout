@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph import END, StateGraph
 
 from role_scout.config import Settings
@@ -86,5 +87,12 @@ def build_graph(
     builder.add_edge("review", "output")
     builder.add_edge("output", END)
 
-    cp = checkpointer or MemorySaver()
-    return builder.compile(checkpointer=cp)
+    if checkpointer is None:
+        serde = JsonPlusSerializer(
+            allowed_msgpack_modules=[
+                ("role_scout.compat.models", "CandidateProfile"),
+                ("role_scout.models.core", "SourceHealthEntry"),
+            ]
+        )
+        checkpointer = MemorySaver(serde=serde)
+    return builder.compile(checkpointer=checkpointer)
