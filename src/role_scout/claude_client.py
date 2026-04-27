@@ -8,9 +8,8 @@ from role_scout.cost import CostKillSwitchError, check_cost_kill_switch, compute
 
 log = structlog.get_logger()
 
-_DEFAULT_MODEL = "claude-sonnet-4-6"
-_DEFAULT_MAX_TOKENS = 4096
 CLAUDE_TIMEOUT_S: float = 120.0
+_DEFAULT_MAX_TOKENS = 4096
 
 
 def call_claude(
@@ -18,10 +17,12 @@ def call_claude(
     user: str,
     api_key: str,
     *,
-    model: str = _DEFAULT_MODEL,
+    model: str = "claude-sonnet-4-6",
     max_tokens: int = _DEFAULT_MAX_TOKENS,
     accumulated_cost: float = 0.0,
     max_cost: float = 5.0,
+    input_cost_per_mtok: float = 3.0,
+    output_cost_per_mtok: float = 15.0,
 ) -> tuple[str, int, int]:
     """Call Claude and return (text, input_tokens, output_tokens).
 
@@ -40,7 +41,12 @@ def call_claude(
 
     input_tokens: int = response.usage.input_tokens
     output_tokens: int = response.usage.output_tokens
-    call_cost = compute_cost(input_tokens, output_tokens)
+    call_cost = compute_cost(
+        input_tokens,
+        output_tokens,
+        input_cost_per_mtok=input_cost_per_mtok,
+        output_cost_per_mtok=output_cost_per_mtok,
+    )
 
     log.info(
         "claude_call_complete",

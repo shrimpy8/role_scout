@@ -131,132 +131,129 @@ def _build_scored_job(
     )
 
 
-def _init_in_memory() -> sqlite3.Connection:
-    """Bootstrap schema + migrations directly on an in-memory connection.
+# Full Phase 2 schema: P1 tables + P2 columns and expanded constraints in one shot.
+# Used by both _init_in_memory and _init_file_db so test DBs are always created
+# with the correct schema without needing a table rebuild migration.
+_FULL_SCHEMA = """
+    PRAGMA journal_mode=WAL;
+    PRAGMA foreign_keys=ON;
 
-    Phase 1 init_db() opens its own connection to a *path* and closes it.
-    For :memory: we must replicate the DDL on the same connection object so
-    the schema persists, then run Phase 2 migrations on that same connection.
-    """
-    # Phase 1 schema (copied from jobsearch.db.connection.init_db executescript)
+    CREATE TABLE IF NOT EXISTS seen_hashes (
+        hash_id       TEXT PRIMARY KEY,
+        source        TEXT NOT NULL DEFAULT '',
+        title         TEXT NOT NULL DEFAULT '',
+        company       TEXT NOT NULL DEFAULT '',
+        first_seen_at TEXT NOT NULL,
+        last_seen_at  TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS qualified_jobs (
+        hash_id             TEXT PRIMARY KEY,
+        title               TEXT NOT NULL,
+        company             TEXT NOT NULL,
+        location            TEXT NOT NULL,
+        city                TEXT NOT NULL DEFAULT '',
+        country             TEXT NOT NULL DEFAULT '',
+        work_model          TEXT NOT NULL DEFAULT 'unknown'
+                            CHECK(work_model IN ('remote','hybrid','onsite','unknown')),
+        url                 TEXT NOT NULL,
+        apply_url           TEXT,
+        source              TEXT NOT NULL
+                            CHECK(source IN ('linkedin','google_jobs','wellfound','trueup')),
+        posted_date         TEXT,
+        comp_range          TEXT,
+        salary_visible      INTEGER NOT NULL DEFAULT 0 CHECK(salary_visible IN (0,1)),
+        company_stage       TEXT,
+        is_watchlist        INTEGER NOT NULL DEFAULT 0 CHECK(is_watchlist IN (0,1)),
+        match_pct           INTEGER NOT NULL CHECK(match_pct BETWEEN 0 AND 100),
+        seniority_score     INTEGER CHECK(seniority_score BETWEEN 0 AND 30),
+        domain_score        INTEGER CHECK(domain_score BETWEEN 0 AND 25),
+        location_score      INTEGER CHECK(location_score BETWEEN 0 AND 20),
+        stage_score         INTEGER CHECK(stage_score BETWEEN 0 AND 15),
+        comp_score          INTEGER CHECK(comp_score BETWEEN 0 AND 10),
+        reasoning           TEXT NOT NULL,
+        key_requirements    TEXT NOT NULL DEFAULT '[]',
+        red_flags           TEXT NOT NULL DEFAULT '[]',
+        domain_alignment    TEXT,
+        seniority_match     TEXT,
+        location_fit        TEXT,
+        company_stage_fit   TEXT,
+        description         TEXT,
+        description_snippet TEXT,
+        company_size        TEXT,
+        domain_tags         TEXT NOT NULL DEFAULT '[]',
+        jd_alignment        TEXT,
+        status              TEXT NOT NULL DEFAULT 'new'
+                            CHECK(status IN ('new','reviewed','applied','rejected')),
+        jd_filename         TEXT,
+        jd_downloaded       INTEGER NOT NULL DEFAULT 0 CHECK(jd_downloaded IN (0,1)),
+        scored_at           TEXT NOT NULL,
+        fetched_at          TEXT,
+        run_id              TEXT,
+        tailored_resume     TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS run_log (
+        run_id             TEXT PRIMARY KEY,
+        started_at         TEXT NOT NULL,
+        completed_at       TEXT,
+        status             TEXT NOT NULL DEFAULT 'running'
+                           CHECK(status IN (
+                               'running','completed','failed',
+                               'review_pending','cancelled','cancelled_ttl'
+                           )),
+        trigger_type       TEXT NOT NULL DEFAULT 'manual'
+                           CHECK(trigger_type IN ('scheduled','manual','dry_run')),
+        source_linkedin    INTEGER NOT NULL DEFAULT 0,
+        source_google_jobs INTEGER NOT NULL DEFAULT 0,
+        source_wellfound   INTEGER NOT NULL DEFAULT 0,
+        source_trueup      INTEGER NOT NULL DEFAULT 0,
+        total_fetched      INTEGER NOT NULL DEFAULT 0,
+        total_new          INTEGER NOT NULL DEFAULT 0,
+        total_qualified    INTEGER NOT NULL DEFAULT 0,
+        watchlist_hits     TEXT NOT NULL DEFAULT '{}',
+        errors             TEXT NOT NULL DEFAULT '[]',
+        input_tokens       INTEGER NOT NULL DEFAULT 0,
+        output_tokens      INTEGER NOT NULL DEFAULT 0,
+        estimated_cost_usd REAL NOT NULL DEFAULT 0.0,
+        source_health_json TEXT,
+        ttl_deadline       TEXT,
+        ttl_extended       INTEGER NOT NULL DEFAULT 0,
+        cancel_reason      TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_qualified_jobs_status
+        ON qualified_jobs(status);
+    CREATE INDEX IF NOT EXISTS idx_qualified_jobs_run_id
+        ON qualified_jobs(run_id);
+    CREATE INDEX IF NOT EXISTS idx_qualified_jobs_match_pct
+        ON qualified_jobs(match_pct DESC);
+    CREATE INDEX IF NOT EXISTS idx_qualified_jobs_company
+        ON qualified_jobs(company);
+    CREATE INDEX IF NOT EXISTS idx_qualified_jobs_scored_at
+        ON qualified_jobs(scored_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_seen_hashes_last_seen
+        ON seen_hashes(last_seen_at);
+    CREATE INDEX IF NOT EXISTS idx_run_log_started_at
+        ON run_log(started_at DESC);
+"""
+
+
+def _init_in_memory() -> sqlite3.Connection:
+    """Bootstrap schema + migrations directly on an in-memory connection."""
     conn = sqlite3.connect(":memory:", check_same_thread=False)
     conn.row_factory = sqlite3.Row
-
-    conn.executescript("""
-        PRAGMA journal_mode=WAL;
-        PRAGMA foreign_keys=ON;
-
-        CREATE TABLE IF NOT EXISTS seen_hashes (
-            hash_id       TEXT PRIMARY KEY,
-            source        TEXT NOT NULL DEFAULT '',
-            title         TEXT NOT NULL DEFAULT '',
-            company       TEXT NOT NULL DEFAULT '',
-            first_seen_at TEXT NOT NULL,
-            last_seen_at  TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS qualified_jobs (
-            hash_id          TEXT PRIMARY KEY,
-            title            TEXT NOT NULL,
-            company          TEXT NOT NULL,
-            location         TEXT NOT NULL,
-            city             TEXT NOT NULL DEFAULT '',
-            country          TEXT NOT NULL DEFAULT '',
-            work_model       TEXT NOT NULL DEFAULT 'unknown'
-                             CHECK(work_model IN ('remote','hybrid','onsite','unknown')),
-            url              TEXT NOT NULL,
-            apply_url        TEXT,
-            source           TEXT NOT NULL
-                             CHECK(source IN ('linkedin','google_jobs','wellfound','trueup')),
-            posted_date      TEXT,
-            comp_range       TEXT,
-            salary_visible   INTEGER NOT NULL DEFAULT 0 CHECK(salary_visible IN (0,1)),
-            company_stage    TEXT,
-            is_watchlist     INTEGER NOT NULL DEFAULT 0 CHECK(is_watchlist IN (0,1)),
-            match_pct        INTEGER NOT NULL CHECK(match_pct BETWEEN 0 AND 100),
-            seniority_score  INTEGER CHECK(seniority_score BETWEEN 0 AND 30),
-            domain_score     INTEGER CHECK(domain_score BETWEEN 0 AND 25),
-            location_score   INTEGER CHECK(location_score BETWEEN 0 AND 20),
-            stage_score      INTEGER CHECK(stage_score BETWEEN 0 AND 15),
-            comp_score       INTEGER CHECK(comp_score BETWEEN 0 AND 10),
-            reasoning        TEXT NOT NULL,
-            key_requirements TEXT NOT NULL DEFAULT '[]',
-            red_flags        TEXT NOT NULL DEFAULT '[]',
-            domain_alignment TEXT,
-            seniority_match  TEXT,
-            location_fit     TEXT,
-            company_stage_fit TEXT,
-            description      TEXT,
-            description_snippet TEXT,
-            company_size     TEXT,
-            domain_tags      TEXT NOT NULL DEFAULT '[]',
-            jd_alignment     TEXT,
-            status           TEXT NOT NULL DEFAULT 'new'
-                             CHECK(status IN ('new','reviewed','applied','rejected')),
-            jd_filename      TEXT,
-            jd_downloaded    INTEGER NOT NULL DEFAULT 0 CHECK(jd_downloaded IN (0,1)),
-            scored_at        TEXT NOT NULL,
-            fetched_at       TEXT,
-            run_id           TEXT
-        );
-
-        CREATE TABLE IF NOT EXISTS run_log (
-            run_id           TEXT PRIMARY KEY,
-            started_at       TEXT NOT NULL,
-            completed_at     TEXT,
-            status           TEXT NOT NULL DEFAULT 'running'
-                             CHECK(status IN ('running','completed','failed')),
-            trigger_type     TEXT NOT NULL DEFAULT 'manual'
-                             CHECK(trigger_type IN ('scheduled','manual','dry_run')),
-            source_linkedin  INTEGER NOT NULL DEFAULT 0,
-            source_google_jobs INTEGER NOT NULL DEFAULT 0,
-            source_wellfound INTEGER NOT NULL DEFAULT 0,
-            source_trueup    INTEGER NOT NULL DEFAULT 0,
-            total_fetched    INTEGER NOT NULL DEFAULT 0,
-            total_new        INTEGER NOT NULL DEFAULT 0,
-            total_qualified  INTEGER NOT NULL DEFAULT 0,
-            watchlist_hits   TEXT NOT NULL DEFAULT '{}',
-            errors           TEXT NOT NULL DEFAULT '[]'
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_qualified_jobs_status
-            ON qualified_jobs(status);
-        CREATE INDEX IF NOT EXISTS idx_qualified_jobs_run_id
-            ON qualified_jobs(run_id);
-        CREATE INDEX IF NOT EXISTS idx_qualified_jobs_match_pct
-            ON qualified_jobs(match_pct DESC);
-        CREATE INDEX IF NOT EXISTS idx_qualified_jobs_company
-            ON qualified_jobs(company);
-        CREATE INDEX IF NOT EXISTS idx_qualified_jobs_scored_at
-            ON qualified_jobs(scored_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_seen_hashes_last_seen
-            ON seen_hashes(last_seen_at);
-    """)
-
-    # Additive Phase 1 column migrations (idempotent)
-    for migration in [
-        "ALTER TABLE qualified_jobs ADD COLUMN country TEXT NOT NULL DEFAULT ''",
-        "ALTER TABLE qualified_jobs ADD COLUMN jd_alignment TEXT",
-        "ALTER TABLE qualified_jobs ADD COLUMN apply_url TEXT",
-    ]:
-        try:
-            conn.execute(migration)
-            conn.commit()
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-
-    # Phase 2 migrations
-    run_migrations(conn)
-
+    conn.executescript(_FULL_SCHEMA)
     return conn
 
 
 def _init_file_db(path: str) -> sqlite3.Connection:
-    """Bootstrap a file-based DB, then return an open rw connection."""
-    _p1_init_db(path)
+    """Bootstrap a file-based DB with the full Phase 2 schema, then return an open rw connection."""
+    from pathlib import Path
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    run_migrations(conn)
+    conn.executescript(_FULL_SCHEMA)
     return conn
 
 

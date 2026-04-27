@@ -11,7 +11,7 @@ from jobsearch.models import ScoredJob
 
 from role_scout.claude_client import call_claude
 from role_scout.config import Settings
-from role_scout.cost import compute_cost
+from role_scout.cost import compute_cost_from_settings
 from role_scout.models.state import JobSearchState, assert_state_size
 
 log = structlog.get_logger()
@@ -151,8 +151,11 @@ def reflection_node(state: JobSearchState) -> dict[str, Any]:
                 system=system_prompt,
                 user="Review this job score for consistency.",
                 api_key=settings.ANTHROPIC_API_KEY,
+                model=settings.CLAUDE_MODEL,
                 accumulated_cost=current_cost,
                 max_cost=settings.MAX_COST_USD,
+                input_cost_per_mtok=settings.CLAUDE_INPUT_COST_PER_MTOK,
+                output_cost_per_mtok=settings.CLAUDE_OUTPUT_COST_PER_MTOK,
             )
         except Exception as exc:
             bound_log.warning(
@@ -163,7 +166,7 @@ def reflection_node(state: JobSearchState) -> dict[str, Any]:
             errors.append(f"reflection_failed({job.hash_id}): {exc}")
             continue
 
-        call_cost = compute_cost(in_tok, out_tok)
+        call_cost = compute_cost_from_settings(in_tok, out_tok, settings)
         reflection_in += in_tok
         reflection_out += out_tok
         current_cost += call_cost
@@ -186,7 +189,7 @@ def reflection_node(state: JobSearchState) -> dict[str, Any]:
         else:
             bound_log.debug("reflection_unchanged", hash_id=job.hash_id)
 
-    reflection_cost = compute_cost(reflection_in, reflection_out)
+    reflection_cost = compute_cost_from_settings(reflection_in, reflection_out, settings)
     bound_log.info(
         "reflection_complete",
         applied=applied_count,

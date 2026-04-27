@@ -60,6 +60,7 @@ class TestConcurrentFetch:
         settings.SERPAPI_KEY = "key"
         settings.IMAP_EMAIL = "a@b.com"
         settings.IMAP_APP_PASSWORD = "pw"
+        settings.DISCOVERY_MAX_ITEMS = 50
 
         with (
             patch("role_scout.nodes.discovery.run_linkedin", slow_linkedin),
@@ -87,6 +88,7 @@ class TestConcurrentFetch:
         settings.SERPAPI_KEY = "key"
         settings.IMAP_EMAIL = "a@b.com"
         settings.IMAP_APP_PASSWORD = "pw"
+        settings.DISCOVERY_MAX_ITEMS = 50
 
         with (
             patch("role_scout.nodes.discovery.run_linkedin", return_value=([], {})),
@@ -108,6 +110,7 @@ class TestConcurrentFetch:
         from role_scout.config import Settings
 
         settings = MagicMock(spec=Settings)
+        settings.DISCOVERY_MAX_ITEMS = 50
 
         with (
             patch("role_scout.nodes.discovery.run_linkedin", return_value=([], {})),

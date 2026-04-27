@@ -11,6 +11,7 @@
   let pollTimer = null;
   let extended = false;
   let lastKnownRevision = null;
+  let cancelledRunId = null;  // run_id the user already cancelled this session
 
   function csrfToken() {
     const el = document.querySelector('meta[name="csrf-token"]');
@@ -35,7 +36,8 @@
     const el = document.getElementById('rs-banner');
     if (!el) return;
 
-    if (data.status !== 'review_pending') {
+    if (data.status !== 'review_pending' || data.run_id === cancelledRunId) {
+      if (data.run_id === cancelledRunId) return; // keep the grey cancelled message visible
       el.innerHTML = '';
       el.hidden = true;
       // Show cancelled toast if applicable
@@ -110,7 +112,9 @@
         body: JSON.stringify({ approved }),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
       if (!approved && el) {
+        cancelledRunId = data.run_id || null;
         el.innerHTML = '<div class="alert banner-cancelled mb-3">Run cancelled. Re-run when ready.</div>';
       }
     } catch (e) {

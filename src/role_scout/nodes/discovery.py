@@ -54,12 +54,12 @@ async def _gather_sources(
     tasks = []
 
     if "linkedin" not in skipped_sources:
-        tasks.append(_fetch_one("linkedin", run_linkedin, profile, settings.APIFY_TOKEN))
+        tasks.append(_fetch_one("linkedin", run_linkedin, profile, settings.APIFY_TOKEN, settings.DISCOVERY_MAX_ITEMS))
     else:
         bound_log.warning("source_skipped", source="linkedin")
 
     if "google" not in skipped_sources:
-        tasks.append(_fetch_one("google", run_google, profile, settings.SERPAPI_KEY))
+        tasks.append(_fetch_one("google", run_google, profile, settings.SERPAPI_KEY, settings.DISCOVERY_MAX_ITEMS))
     else:
         bound_log.warning("source_skipped", source="google")
 

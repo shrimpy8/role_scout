@@ -24,7 +24,6 @@ _PAGINATION_MAX_LIMIT = 50
 _PAGINATION_DEFAULT_LIMIT = 10
 _JOBS_LISTING_LIMIT = 100
 _MAX_COMPANY_NAME_LENGTH = 100
-_TTL_EXTENSION_SECONDS = 7200
 
 bp = Blueprint("role_scout", __name__, url_prefix="")
 
@@ -66,6 +65,10 @@ def tailor_route(hash_id: str):
                 qualify_threshold=settings.SCORE_THRESHOLD,
                 force=force,
                 api_key=settings.ANTHROPIC_API_KEY,
+                model=settings.CLAUDE_MODEL,
+                max_cost=settings.MAX_COST_USD,
+                input_cost_per_mtok=settings.CLAUDE_INPUT_COST_PER_MTOK,
+                output_cost_per_mtok=settings.CLAUDE_OUTPUT_COST_PER_MTOK,
                 correlation_id=corr_id,
             )
     except NotQualifiedError as exc:
@@ -76,7 +79,7 @@ def tailor_route(hash_id: str):
         return jsonify({"error": {"code": "CLAUDE_API_ERROR", "message": str(exc), "details": []}}), 500
     except Exception:
         bound_log.exception("tailor_route.error")
-        return jsonify({"error": {"code": "CLAUDE_API_ERROR", "message": "Tailor call failed", "details": []}}), 500
+        return jsonify({"error": {"code": "CLAUDE_API_ERROR", "message": "Tailoring failed due to an unexpected error. Please try again — if this keeps happening, check your ANTHROPIC_API_KEY in .env.", "details": []}}), 500
 
     bound_log.info("tailor_route.ok", cached=result.cached)
     return jsonify(result.model_dump(mode="json")), 200
@@ -143,7 +146,7 @@ def pipeline_status():
         except (json.JSONDecodeError, AttributeError):
             pass
 
-    return jsonify({
+    resp = jsonify({
         "run_id": d["run_id"],
         "status": d["status"],
         "qualified_count": d["qualified_count"],
@@ -154,7 +157,9 @@ def pipeline_status():
         "watchlist_revision": len(watchlist),
         "top_3_matches": top3_matches,
         "source_health": source_health,
-    }), 200
+    })
+    resp.headers["Cache-Control"] = "no-store"
+    return resp, 200
 
 
 # ---------------------------------------------------------------------------
@@ -261,9 +266,7 @@ def pipeline_resume():
     resolved = resolve_pending(run_id, decision)
 
     if not resolved:
-        # Run is in review_pending in DB but no queue found (maybe TTL expired or different process)
-        log.warning("pipeline_resume.no_queue", run_id=run_id)
-        return jsonify({"status": "signaled", "run_id": run_id, "note": "No in-process queue found"}), 200
+        log.info("pipeline_resume.signaled_via_file", run_id=run_id)
 
     return jsonify({"status": "resumed", "run_id": run_id, "approved": approved}), 200
 
@@ -292,11 +295,11 @@ def pipeline_extend():
             return jsonify({"error": {"code": "ALREADY_EXTENDED", "message": "TTL already extended once for this run", "details": []}}), 400
 
         conn.execute(
-            f"UPDATE run_log SET ttl_deadline = datetime(ttl_deadline, '+{_TTL_EXTENSION_SECONDS} seconds'), ttl_extended = 1 WHERE run_id = ?",
+            f"UPDATE run_log SET ttl_deadline = datetime(ttl_deadline, '+{settings.TTL_EXTENSION_SECONDS} seconds'), ttl_extended = 1 WHERE run_id = ?",
             (row["run_id"],),
         )
         conn.commit()
-        return jsonify({"status": "extended", "run_id": row["run_id"], "extended_by_seconds": _TTL_EXTENSION_SECONDS}), 200
+        return jsonify({"status": "extended", "run_id": row["run_id"], "extended_by_seconds": settings.TTL_EXTENSION_SECONDS}), 200
 
 
 # ---------------------------------------------------------------------------

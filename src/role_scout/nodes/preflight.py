@@ -84,16 +84,13 @@ def preflight_node(state: JobSearchState) -> dict[str, Any]:
 
     # --- Load candidate profile ---
     try:
-        candidate_profile = load_candidate_profile(
-            str(settings.DB_PATH).replace("output/jobsearch.db", "config/candidate_profile.yaml")
-        )
+        candidate_profile = load_candidate_profile(str(settings.CANDIDATE_PROFILE_PATH))
     except Exception as exc:
         _fail_run(conn, run_id, str(exc))
         raise PreflightError(f"Cannot load candidate_profile.yaml: {exc}") from exc
 
     # --- Load watchlist ---
-    watchlist_path = str(settings.DB_PATH).replace("output/jobsearch.db", "config/watchlist.yaml")
-    watchlist = _load_watchlist(watchlist_path)
+    watchlist = _load_watchlist(str(settings.WATCHLIST_PATH))
 
     # --- Source auto-skip (3 consecutive failures) ---
     force_sources: set[str] = set(state.get("force_sources", []))  # type: ignore[arg-type]

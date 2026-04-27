@@ -7,8 +7,9 @@ import structlog
 
 log = structlog.get_logger()
 
-# Each entry: (migration_name, sql). Applied in order; each is idempotent.
-PHASE2_MIGRATIONS: list[tuple[str, str]] = [
+# Each entry: (migration_name, sql_or_steps).
+# sql_or_steps may be a single SQL string or a list of SQL strings run in sequence.
+PHASE2_MIGRATIONS: list[tuple[str, str | list[str]]] = [
     (
         "qualified_jobs_tailored_resume",
         "ALTER TABLE qualified_jobs ADD COLUMN tailored_resume TEXT",
@@ -53,6 +54,21 @@ PHASE2_MIGRATIONS: list[tuple[str, str]] = [
         "qualified_jobs_idx_status",
         "CREATE INDEX IF NOT EXISTS idx_qualified_jobs_status ON qualified_jobs(status)",
     ),
+    # Phase 1 CHECK only allowed ('running','completed','failed').
+    # Phase 2 adds review_pending, cancelled, cancelled_ttl.
+    # Uses PRAGMA writable_schema to patch sqlite_master directly — no table
+    # rebuild required, so no WAL lock contention.
+    (
+        "run_log_expand_status_constraint",
+        [
+            "PRAGMA writable_schema=ON",
+            "UPDATE sqlite_master SET sql = replace(sql,"
+            " 'CHECK(status IN (''running'',''completed'',''failed''))',"
+            " 'CHECK(status IN (''running'',''completed'',''failed'',''review_pending'',''cancelled'',''cancelled_ttl''))')"
+            " WHERE type='table' AND name='run_log' AND sql NOT LIKE '%review_pending%'",
+            "PRAGMA writable_schema=OFF",
+        ],
+    ),
 ]
 
 
@@ -63,9 +79,11 @@ def run_migrations(conn: sqlite3.Connection) -> None:
     conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA foreign_keys=ON")
 
-    for name, sql in PHASE2_MIGRATIONS:
+    for name, steps in PHASE2_MIGRATIONS:
+        sql_list = [steps] if isinstance(steps, str) else steps
         try:
-            conn.execute(sql)
+            for sql in sql_list:
+                conn.execute(sql)
             conn.commit()
             log.info("migration_applied", name=name)
         except sqlite3.OperationalError as e:

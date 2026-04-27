@@ -485,6 +485,10 @@ def _tool_tailor_resume(arguments: dict[str, Any], settings: Settings) -> CallTo
             qualify_threshold=settings.SCORE_THRESHOLD,
             force=inp.force,
             api_key=settings.ANTHROPIC_API_KEY,
+            model=settings.CLAUDE_MODEL,
+            max_cost=settings.MAX_COST_USD,
+            input_cost_per_mtok=settings.CLAUDE_INPUT_COST_PER_MTOK,
+            output_cost_per_mtok=settings.CLAUDE_OUTPUT_COST_PER_MTOK,
         )
     except NotQualifiedError as exc:
         conn.close()

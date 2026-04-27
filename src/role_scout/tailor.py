@@ -88,19 +88,20 @@ def _validate_response(raw_json: str, hash_id: str) -> dict[str, Any]:
     try:
         parsed = json.loads(raw_json)
     except json.JSONDecodeError as exc:
-        raise TailorParseError(f"Claude returned invalid JSON for {hash_id}: {exc}") from exc
+        raise TailorParseError(
+            "Claude returned an unexpected response. Please try again — if this keeps happening, check your ANTHROPIC_API_KEY."
+        ) from exc
 
     required = {"tailored_summary", "tailored_bullets", "keywords_incorporated"}
     missing = required - set(parsed.keys())
     if missing:
         raise TailorParseError(
-            f"Claude response missing required fields {missing} for {hash_id}"
+            "Claude returned an incomplete response. Please try again."
         )
 
     if not isinstance(parsed["tailored_bullets"], list) or len(parsed["tailored_bullets"]) < _MIN_TAILORED_BULLETS:
         raise TailorParseError(
-            f"tailored_bullets must be a list of ≥ {_MIN_TAILORED_BULLETS} items for {hash_id}; "
-            f"got {parsed.get('tailored_bullets')!r}"
+            "Claude returned too few resume bullets. Please try again."
         )
 
     return parsed
@@ -122,10 +123,11 @@ def _check_job_qualified(conn: sqlite3.Connection, hash_id: str, qualify_thresho
     """
     job = get_job_by_hash_id(conn, hash_id)
     if job is None:
-        raise NotQualifiedError(f"Job not found: {hash_id!r}")
+        raise NotQualifiedError("This job no longer exists in the database. Refresh the page to see the current job list.")
     if job.match_pct < qualify_threshold:
         raise NotQualifiedError(
-            f"Job {hash_id} has match_pct={job.match_pct} < threshold={qualify_threshold}"
+            f"This job scored {job.match_pct}%, which is below your {qualify_threshold}% threshold. "
+            f"Only jobs at or above your threshold can be tailored."
         )
     return job
 
@@ -179,8 +181,11 @@ def tailor_resume(
     qualify_threshold: int = 85,
     force: bool = False,
     api_key: str,
+    model: str = "claude-sonnet-4-6",
     accumulated_cost: float = 0.0,
     max_cost: float = 5.0,
+    input_cost_per_mtok: float = 3.0,
+    output_cost_per_mtok: float = 15.0,
     correlation_id: str | None = None,
 ) -> TailoredResume:
     """Generate (or return cached) tailored resume content for a qualified job.
@@ -246,9 +251,12 @@ def tailor_resume(
         system=system_prompt,
         user=user_message,
         api_key=api_key,
+        model=model,
         max_tokens=_TAILOR_MAX_TOKENS,
         accumulated_cost=accumulated_cost,
         max_cost=max_cost,
+        input_cost_per_mtok=input_cost_per_mtok,
+        output_cost_per_mtok=output_cost_per_mtok,
     )
     bound_log.info(
         "tailor_resume.claude_ok",

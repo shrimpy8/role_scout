@@ -8,7 +8,7 @@ from jobsearch.models import CandidateProfile, NormalizedJob, ScoredJob
 from jobsearch.pipeline.scorer import score_jobs_batch
 
 from role_scout.config import Settings
-from role_scout.cost import CostKillSwitchError, check_cost_kill_switch, compute_cost
+from role_scout.cost import CostKillSwitchError, check_cost_kill_switch, compute_cost_from_settings
 from role_scout.models.state import JobSearchState, assert_state_size
 
 log = structlog.get_logger()
@@ -93,7 +93,7 @@ def scoring_node(state: JobSearchState) -> dict[str, Any]:
 
     new_input_total = accumulated_input + est_input
     new_output_total = accumulated_output + est_output
-    new_cost = compute_cost(new_input_total, new_output_total)
+    new_cost = compute_cost_from_settings(new_input_total, new_output_total, settings)
 
     bound_log.info(
         "scoring_complete",

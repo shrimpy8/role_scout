@@ -111,13 +111,14 @@ class TestDiscoveryNodeIntegration:
         settings_mock.IMAP_EMAIL = "a@b.com"
         settings_mock.IMAP_APP_PASSWORD = "pw"
         settings_mock.DB_PATH = ":memory:"
+        settings_mock.DISCOVERY_MAX_ITEMS = 50
 
         conn = _make_db()
 
-        def _fake_run_linkedin(profile, token):
+        def _fake_run_linkedin(profile, token, max_items=50):
             return linkedin_result
 
-        def _fake_run_google(profile, key):
+        def _fake_run_google(profile, key, max_results=50):
             return google_result
 
         def _fake_run_trueup(email, pw):

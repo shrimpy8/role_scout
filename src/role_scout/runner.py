@@ -9,9 +9,13 @@ from __future__ import annotations
 
 import queue
 import queue as _queue_module
+import sqlite3
+import tempfile
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import structlog
@@ -38,11 +42,17 @@ def register_pending(run_id: str, q: _queue_module.Queue[str]) -> None:
 
 def resolve_pending(run_id: str, decision: str) -> bool:
     """Signal a decision from Flask route. Returns True if a pending run was found."""
+    # Write signal file for cross-process communication (Flask + pipeline are separate processes)
+    _signal_file_path(run_id).write_text(decision)
     q = _pending_decisions.pop(run_id, None)
     if q is None:
         return False
     q.put(decision)
     return True
+
+
+def _signal_file_path(run_id: str) -> Path:
+    return Path(tempfile.gettempdir()) / f"role_scout_decision_{run_id}.txt"
 
 
 def run_graph(
@@ -98,7 +108,7 @@ def run_graph(
     )
 
     # Update DB to review_pending
-    _set_db_review_pending(effective_db_path, run_id, settings.INTERRUPT_TTL_HOURS)
+    _set_db_review_pending(effective_db_path, run_id, settings.INTERRUPT_TTL_HOURS, qualified_count)
 
     should_auto_approve = auto_approve or effective_trigger in _AUTO_APPROVE_TRIGGERS
     if should_auto_approve:
@@ -126,17 +136,18 @@ def run_graph(
 # ---------------------------------------------------------------------------
 
 
-def _set_db_review_pending(db_path: str, run_id: str, ttl_hours: float) -> None:
+def _set_db_review_pending(db_path: str, run_id: str, ttl_hours: float, qualified_count: int = 0) -> None:
     """Mark the run as review_pending with a TTL deadline in the DB."""
+    from role_scout.dal.run_log_dal import update_run
+    conn = get_rw_conn(db_path)
     try:
-        conn = get_rw_conn(db_path)
         ttl_deadline = compute_ttl_deadline(ttl_hours)
         set_run_status(conn, run_id, "review_pending")
-        from role_scout.dal.run_log_dal import update_run
-        update_run(conn, run_id, ttl_deadline=ttl_deadline)
+        update_run(conn, run_id, ttl_deadline=ttl_deadline, total_qualified=qualified_count)
+    except sqlite3.OperationalError:
+        log.exception("runner_db_review_pending_failed", run_id=run_id)
+    finally:
         conn.close()
-    except Exception:
-        log.warning("runner_db_review_pending_failed", run_id=run_id)
 
 
 def _prompt_user(qualified_count: int, run_id: str) -> str:
@@ -176,22 +187,44 @@ def _interactive_decision(
     """
     ttl_seconds = ttl_hours * 3600
     result_q: queue.Queue[str] = queue.Queue()
+    sig_path = _signal_file_path(run_id)
 
     def _reader() -> None:
         result_q.put(_prompt_user(qualified_count, run_id))
 
+    def _poll_signal_file() -> None:
+        while True:
+            if sig_path.exists():
+                try:
+                    decision = sig_path.read_text().strip()
+                    if decision in ("approve", "cancel", "ttl_expired"):
+                        result_q.put(decision)
+                        return
+                except OSError:
+                    pass
+            time.sleep(1)
+
     thread = threading.Thread(target=_reader, daemon=True)
     thread.start()
+    polling_thread = threading.Thread(target=_poll_signal_file, daemon=True)
+    polling_thread.start()
 
-    # Register so the Flask route can signal a decision via resolve_pending()
+    # Register so the Flask route can also signal via in-process queue (same-process usage)
     register_pending(run_id, result_q)
 
     try:
-        return result_q.get(timeout=ttl_seconds)
+        decision = result_q.get(timeout=ttl_seconds)
     except queue.Empty:
         log.warning(
             "review_ttl_expired_runner",
             run_id=run_id,
             ttl_hours=ttl_hours,
         )
-        return "ttl_expired"
+        decision = "ttl_expired"
+
+    try:
+        sig_path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+    return decision

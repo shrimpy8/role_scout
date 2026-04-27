@@ -1,22 +1,40 @@
 """Cost tracking for Claude API calls — per-run accumulation and kill-switch."""
 from __future__ import annotations
 
-# Pricing for claude-sonnet-4-6 ($ per million tokens)
-INPUT_COST_PER_MTOK: float = 3.0
-OUTPUT_COST_PER_MTOK: float = 15.0
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from role_scout.config import Settings
+
+# Fallback pricing used when callers don't pass Settings (e.g. tests, CLI tools).
+# Production callers should always pass settings to pick up .env overrides.
+_FALLBACK_INPUT_COST_PER_MTOK: float = 3.0
+_FALLBACK_OUTPUT_COST_PER_MTOK: float = 15.0
 
 
 class CostKillSwitchError(RuntimeError):
     """Raised before a Claude call when accumulated cost has exceeded MAX_COST_USD."""
 
 
-def compute_cost(input_tokens: int, output_tokens: int) -> float:
-    """Return USD cost for the given token counts.
+def compute_cost(
+    input_tokens: int,
+    output_tokens: int,
+    *,
+    input_cost_per_mtok: float = _FALLBACK_INPUT_COST_PER_MTOK,
+    output_cost_per_mtok: float = _FALLBACK_OUTPUT_COST_PER_MTOK,
+) -> float:
+    """Return USD cost for the given token counts using the supplied per-MTok rates."""
+    return (input_tokens * input_cost_per_mtok + output_tokens * output_cost_per_mtok) / 1_000_000
 
-    Formula: (input_tokens * 3.0 + output_tokens * 15.0) / 1_000_000
-    Matches claude-sonnet-4-6 pricing as of 2026-04.
-    """
-    return (input_tokens * INPUT_COST_PER_MTOK + output_tokens * OUTPUT_COST_PER_MTOK) / 1_000_000
+
+def compute_cost_from_settings(input_tokens: int, output_tokens: int, settings: "Settings") -> float:
+    """Convenience wrapper that reads pricing from Settings — use this in all production nodes."""
+    return compute_cost(
+        input_tokens,
+        output_tokens,
+        input_cost_per_mtok=settings.CLAUDE_INPUT_COST_PER_MTOK,
+        output_cost_per_mtok=settings.CLAUDE_OUTPUT_COST_PER_MTOK,
+    )
 
 
 def check_cost_kill_switch(accumulated_cost: float, max_cost: float) -> None:

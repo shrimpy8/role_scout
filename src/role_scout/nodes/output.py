@@ -37,6 +37,8 @@ def output_node(state: JobSearchState) -> dict[str, Any]:
 
     human_approved: bool = bool(state.get("human_approved", False))
     cancel_reason: str | None = state.get("cancel_reason")
+    trigger_type: str = state.get("trigger_type", "manual")
+    dry_run: bool = trigger_type == "dry_run"
     scored_jobs: list[ScoredJob] = list(state.get("scored_jobs", []))
     qualify_threshold: int = int(state.get("qualify_threshold", settings.SCORE_THRESHOLD))
     errors: list[str] = list(state.get("errors", []))
@@ -47,7 +49,12 @@ def output_node(state: JobSearchState) -> dict[str, Any]:
     reflection_tokens_out: int = int(state.get("reflection_tokens_out", 0))
     total_cost_usd: float = float(state.get("total_cost_usd", 0.0))
 
-    bound_log.info("output_started", human_approved=human_approved)
+    bound_log.info("output_started", human_approved=human_approved, dry_run=dry_run)
+
+    if dry_run:
+        qualified_count = sum(1 for j in scored_jobs if j.match_pct >= qualify_threshold)
+        bound_log.info("output_dry_run_skipped", qualified_count=qualified_count)
+        return {"exported_count": 0, "errors": errors}
 
     exported_count: int = 0
     conn: sqlite3.Connection | None = None

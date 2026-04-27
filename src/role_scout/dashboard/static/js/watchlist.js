@@ -53,6 +53,17 @@
     setTimeout(function () { el.hidden = true; }, 4000);
   }
 
+  function flashCopied(btn) {
+    if (!btn) return;
+    const original = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.disabled = true;
+    setTimeout(function () {
+      btn.textContent = original;
+      btn.disabled = false;
+    }, 1500);
+  }
+
   async function addCompany(company) {
     // Optimistic add
     if (!watchlist.includes(company)) watchlist.push(company);
@@ -70,7 +81,7 @@
       if (!resp.ok) {
         watchlist = watchlist.filter(function (c) { return c !== company; });
         renderWatchlist();
-        showError(data.error?.message || "Couldn't save — please retry");
+        showError(data.error?.message || "Couldn't add company — check your connection and try again");
         return;
       }
       watchlist = data.watchlist || watchlist;
@@ -78,7 +89,7 @@
     } catch (e) {
       watchlist = watchlist.filter(function (c) { return c !== company; });
       renderWatchlist();
-      showError("Couldn't save — please retry");
+      showError("Couldn't reach the server — check your connection and try again");
     }
   }
 
@@ -97,7 +108,7 @@
       if (!resp.ok) {
         watchlist = prev;
         renderWatchlist();
-        showError("Couldn't remove — please retry");
+        showError(data.error?.message || "Couldn't remove company — check your connection and try again");
         return;
       }
       watchlist = data.watchlist || watchlist;
@@ -105,7 +116,7 @@
     } catch (e) {
       watchlist = prev;
       renderWatchlist();
-      showError("Couldn't remove — please retry");
+      showError("Couldn't reach the server — check your connection and try again");
     }
   }
 
@@ -116,7 +127,8 @@
     if (addBtn) {
       addBtn.addEventListener('click', function () {
         const val = (input?.value || '').trim();
-        if (val) addCompany(val);
+        if (!val) { showError('Company name cannot be blank'); return; }
+        addCompany(val);
       });
     }
 
@@ -124,7 +136,8 @@
       input.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') {
           const val = input.value.trim();
-          if (val) addCompany(val);
+          if (!val) { showError('Company name cannot be blank'); return; }
+          addCompany(val);
         }
       });
     }
@@ -172,7 +185,10 @@
       const data = await resp.json();
       if (!resp.ok) {
         if (loading) loading.hidden = true;
-        if (errEl) { errEl.textContent = 'Tailoring failed — try again'; errEl.hidden = false; }
+        if (errEl) {
+          errEl.textContent = data.error?.message || 'Tailoring failed — try again';
+          errEl.hidden = false;
+        }
         if (btn) btn.disabled = false;
         return;
       }
@@ -197,16 +213,20 @@
           kwEl.textContent = data.keywords_incorporated.join(' · ');
         }
         result.querySelector('.copy-summary')?.addEventListener('click', function () {
-          navigator.clipboard?.writeText(data.tailored_summary || '');
+          navigator.clipboard?.writeText(data.tailored_summary || '').then(function () {
+            flashCopied(result.querySelector('.copy-summary'));
+          });
         });
         result.querySelector('.copy-bullets')?.addEventListener('click', function () {
           const text = (data.tailored_bullets || []).join('\n');
-          navigator.clipboard?.writeText(text);
+          navigator.clipboard?.writeText(text).then(function () {
+            flashCopied(result.querySelector('.copy-bullets'));
+          });
         });
       }
     } catch (e) {
       if (loading) loading.hidden = true;
-      if (errEl) { errEl.textContent = 'Tailoring failed — try again'; errEl.hidden = false; }
+      if (errEl) { errEl.textContent = 'Tailoring failed — network error, try again'; errEl.hidden = false; }
     }
     if (btn) btn.disabled = false;
   }

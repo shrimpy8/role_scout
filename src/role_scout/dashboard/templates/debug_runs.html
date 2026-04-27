@@ -75,7 +75,7 @@
     if (loading) loading.remove();
 
     if (runs.length === 0 && currentOffset === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No runs recorded yet.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No pipeline runs recorded yet. Run the pipeline with <code>uv run python run.py --agentic</code> to get started.</td></tr>';
       return;
     }
 
@@ -127,7 +127,7 @@
       const loading = document.getElementById('runs-loading');
       if (loading) loading.remove();
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td colspan="6" class="text-danger text-center py-3">Failed to load runs: ${escHtml(e.message)}</td>`;
+      tr.innerHTML = `<td colspan="6" class="text-danger text-center py-3">Could not load run history — check that the dashboard server is running and refresh the page.</td>`;
       tbody.appendChild(tr);
     }
   }

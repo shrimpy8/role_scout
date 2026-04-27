@@ -23,10 +23,12 @@ class Settings(BaseSettings):
 
     # ---- Required API keys ----
     ANTHROPIC_API_KEY: str
-    SERPAPI_KEY: str
-    APIFY_TOKEN: str
-    IMAP_EMAIL: str
-    IMAP_APP_PASSWORD: str
+
+    # ---- Pipeline-only keys (not required for dashboard-only operation) ----
+    SERPAPI_KEY: str | None = None
+    APIFY_TOKEN: str | None = None
+    IMAP_EMAIL: str | None = None
+    IMAP_APP_PASSWORD: str | None = None
 
     # ---- Optional eval keys (only required when running evals) ----
     OPENAI_API_KEY: str | None = None
@@ -35,6 +37,7 @@ class Settings(BaseSettings):
     # ---- Pipeline tuning ----
     # Coerced from float to int to accept legacy Phase 1 .env values like "0.69"
     SCORE_THRESHOLD: int = Field(default=85, ge=0, le=100)
+    DISCOVERY_MAX_ITEMS: int = Field(default=50, ge=1, le=200)
     REFLECTION_ENABLED: bool = True
     REFLECTION_BAND_LOW: int = Field(default=70, ge=0, le=100)
     REFLECTION_BAND_HIGH: int = Field(default=89, ge=0, le=100)
@@ -52,7 +55,13 @@ class Settings(BaseSettings):
         return round(f)
     RUN_MODE: Literal["linear", "agentic", "shadow"] = "shadow"
     MAX_COST_USD: float = Field(default=5.00, ge=0)
-    INTERRUPT_TTL_HOURS: float = Field(default=4.0, ge=0.5, le=24.0)
+    INTERRUPT_TTL_HOURS: float = Field(default=4.0, ge=0.01, le=24.0)
+    TTL_EXTENSION_SECONDS: int = Field(default=7200, ge=60, le=86400)
+
+    # ---- Claude model & pricing ----
+    CLAUDE_MODEL: str = "claude-sonnet-4-6"
+    CLAUDE_INPUT_COST_PER_MTOK: float = Field(default=3.0, ge=0)
+    CLAUDE_OUTPUT_COST_PER_MTOK: float = Field(default=15.0, ge=0)
 
     # ---- Observability ----
     LANGSMITH_TRACING: bool = False
@@ -64,6 +73,8 @@ class Settings(BaseSettings):
     # ---- Storage ----
     DB_PATH: Path = Path("../auto_jobsearch/output/jobsearch.db")
     RESUME_SUMMARY_PATH: Path = Path("config/resume_summary.md")
+    CANDIDATE_PROFILE_PATH: Path = Path("../auto_jobsearch/config/candidate_profile.yaml")
+    WATCHLIST_PATH: Path = Path("../auto_jobsearch/config/watchlist.yaml")
 
     # ---- Source health ----
     SERPAPI_MIN_QUOTA: int = Field(default=10, ge=1)
