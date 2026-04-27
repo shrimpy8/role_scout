@@ -5,8 +5,8 @@ import time
 from typing import Any
 
 import structlog
-from jobsearch.fetchers.google_jobs import fetch_google_jobs
-from jobsearch.models import CandidateProfile
+from role_scout.compat.fetchers.google_jobs import fetch_google_jobs
+from role_scout.compat.models import CandidateProfile
 
 log = structlog.get_logger()
 

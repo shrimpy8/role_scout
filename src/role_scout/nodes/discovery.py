@@ -6,9 +6,9 @@ import time
 from typing import Any
 
 import structlog
-from jobsearch.models import CandidateProfile, NormalizedJob
-from jobsearch.pipeline.dedup import dedup_jobs
-from jobsearch.pipeline.normalize import normalize_jobs
+from role_scout.compat.models import CandidateProfile, NormalizedJob
+from role_scout.compat.pipeline.dedup import dedup_jobs
+from role_scout.compat.pipeline.normalize import normalize_jobs
 
 from role_scout.config import Settings
 from role_scout.dal.run_log_dal import write_source_health

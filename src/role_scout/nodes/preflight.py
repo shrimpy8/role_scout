@@ -7,8 +7,8 @@ from typing import Any
 
 import httpx
 import structlog
-from jobsearch.db.connection import get_db
-from jobsearch.models import load_candidate_profile
+from role_scout.compat.db.connection import get_db
+from role_scout.compat.models import load_candidate_profile
 
 from role_scout.config import Settings
 from role_scout.dal.run_log_dal import get_sources_to_skip, insert_run, update_run

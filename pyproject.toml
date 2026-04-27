@@ -27,9 +27,10 @@ dependencies = [
     # Utilities
     "pyyaml>=6.0",
     "tenacity>=8.3.0",
-    # Phase 1 (frozen) — resolved via [tool.uv.sources] below
-    "jobsearch",
     "httpx>=0.28.1",
+    # Phase 1 code absorbed into role_scout.compat (Option B)
+    "beautifulsoup4>=4.12.0",
+    "serpapi>=1.0.2",
 ]
 
 [project.optional-dependencies]
@@ -72,9 +73,6 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
-
-[tool.uv.sources]
-jobsearch = { path = "../auto_jobsearch", editable = true }
 
 [dependency-groups]
 dev = [

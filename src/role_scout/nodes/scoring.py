@@ -4,8 +4,8 @@ from __future__ import annotations
 from typing import Any
 
 import structlog
-from jobsearch.models import CandidateProfile, NormalizedJob, ScoredJob
-from jobsearch.pipeline.scorer import score_jobs_batch
+from role_scout.compat.models import CandidateProfile, NormalizedJob, ScoredJob
+from role_scout.compat.pipeline.scorer import score_jobs_batch
 
 from role_scout.config import Settings
 from role_scout.cost import CostKillSwitchError, check_cost_kill_switch, compute_cost_from_settings
@@ -78,6 +78,7 @@ def scoring_node(state: JobSearchState) -> dict[str, Any]:
             api_key=settings.ANTHROPIC_API_KEY,
             qualify_threshold=qualify_threshold,
             run_id=run_id,
+            model=settings.CLAUDE_MODEL,
         )
     except Exception as exc:
         bound_log.exception("scoring_failed")

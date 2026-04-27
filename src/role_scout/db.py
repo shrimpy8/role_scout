@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import structlog
-from jobsearch.db.connection import init_db as _p1_init_db
+from role_scout.compat.db.connection import init_db as _p1_init_db
 
 from role_scout.migrations import run_migrations
 

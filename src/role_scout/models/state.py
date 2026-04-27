@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 from typing import TypedDict
 
-from jobsearch.models import CandidateProfile, NormalizedJob, ScoredJob
+from role_scout.compat.models import CandidateProfile, NormalizedJob, ScoredJob
 
 from role_scout.models.core import (
     CancelReason,

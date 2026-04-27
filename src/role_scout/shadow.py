@@ -46,12 +46,7 @@ log = structlog.get_logger()
 # Optional Phase 1 import
 # ---------------------------------------------------------------------------
 
-try:
-    from jobsearch.pipeline import run_linear_pipeline  # type: ignore[import-untyped]
-
-    _LINEAR_AVAILABLE = True
-except ImportError:
-    _LINEAR_AVAILABLE = False
+_LINEAR_AVAILABLE = False  # Phase 1 linear pipeline removed in Option B migration
 
 # ---------------------------------------------------------------------------
 # Result model

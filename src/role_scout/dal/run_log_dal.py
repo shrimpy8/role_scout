@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 import structlog
-from jobsearch.db.run_log import insert_run_log as _p1_insert_run_log
-from jobsearch.models import RunLog as P1RunLog
+from role_scout.compat.db.run_log import insert_run_log as _p1_insert_run_log
+from role_scout.compat.models import RunLog as P1RunLog
 
 from role_scout.models.core import CancelReason, RunStatus, SourceHealthEntry, SourceName, TriggerType
 from role_scout.models.records import RunLogRow, SourceHealthBlob

@@ -4,12 +4,12 @@ from __future__ import annotations
 import sqlite3
 
 import structlog
-from jobsearch.db.qualified_jobs import (
+from role_scout.compat.db.qualified_jobs import (
     get_job_by_hash_id as _p1_get_job_by_hash_id,
     get_qualified_jobs as _p1_get_qualified_jobs,
     update_job_status as _p1_update_job_status,
 )
-from jobsearch.models import ScoredJob
+from role_scout.compat.models import ScoredJob
 from pydantic import Field
 
 from role_scout.models.core import BaseSchema

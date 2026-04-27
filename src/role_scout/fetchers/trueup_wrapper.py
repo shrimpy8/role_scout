@@ -9,7 +9,7 @@ import time
 from typing import Any
 
 import structlog
-from jobsearch.fetchers.trueup import fetch_trueup
+from role_scout.compat.fetchers.trueup import fetch_trueup
 
 log = structlog.get_logger()
 

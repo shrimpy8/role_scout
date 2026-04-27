@@ -7,7 +7,7 @@ from string import Template
 from typing import Any
 
 import structlog
-from jobsearch.models import ScoredJob
+from role_scout.compat.models import ScoredJob
 
 from role_scout.claude_client import call_claude
 from role_scout.config import Settings

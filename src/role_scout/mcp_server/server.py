@@ -336,7 +336,7 @@ def _tool_get_jobs(arguments: dict[str, Any], settings: Settings) -> CallToolRes
         # Map MCP source name to Phase 1 source name (google → google_jobs)
         p1_source = "google_jobs" if inp.source == "google" else inp.source
 
-        from jobsearch.db.qualified_jobs import get_qualified_jobs as _p1_get
+        from role_scout.compat.db.qualified_jobs import get_qualified_jobs as _p1_get
         jobs = _p1_get(conn, status=inp.status, limit=inp.limit, source=p1_source)
     finally:
         conn.close()
@@ -437,7 +437,7 @@ def _tool_analyze_job(arguments: dict[str, Any], settings: Settings) -> CallTool
             pass  # fall through to fresh analysis
 
     try:
-        from jobsearch.pipeline.alignment import run_alignment
+        from role_scout.compat.pipeline.alignment import run_alignment
         raw_json = run_alignment(job)
         parsed = json.loads(raw_json)
     except ValueError as exc:
@@ -459,7 +459,7 @@ def _tool_analyze_job(arguments: dict[str, Any], settings: Settings) -> CallTool
     # Persist to DB
     try:
         rw_conn = get_rw_conn(settings.DB_PATH)
-        from jobsearch.db.qualified_jobs import update_jd_alignment
+        from role_scout.compat.db.qualified_jobs import update_jd_alignment
         update_jd_alignment(rw_conn, inp.hash_id, raw_json)
         rw_conn.commit()
         rw_conn.close()

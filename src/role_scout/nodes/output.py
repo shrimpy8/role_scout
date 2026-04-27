@@ -13,9 +13,9 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from jobsearch.db.qualified_jobs import insert_qualified_job
-from jobsearch.db.seen_hashes import upsert_seen_hash
-from jobsearch.models import ScoredJob
+from role_scout.compat.db.qualified_jobs import insert_qualified_job
+from role_scout.compat.db.seen_hashes import upsert_seen_hash
+from role_scout.compat.models import ScoredJob
 
 from role_scout.config import Settings
 from role_scout.dal.run_log_dal import set_run_status, update_run, write_source_health

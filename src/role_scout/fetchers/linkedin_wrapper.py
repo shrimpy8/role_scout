@@ -5,8 +5,8 @@ import time
 from typing import Any
 
 import structlog
-from jobsearch.fetchers.linkedin import fetch_linkedin
-from jobsearch.models import CandidateProfile
+from role_scout.compat.fetchers.linkedin import fetch_linkedin
+from role_scout.compat.models import CandidateProfile
 
 log = structlog.get_logger()
 

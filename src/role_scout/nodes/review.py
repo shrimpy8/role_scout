@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 import structlog
-from jobsearch.models import ScoredJob
+from role_scout.compat.models import ScoredJob
 from langgraph.types import interrupt
 
 from role_scout.models.state import JobSearchState

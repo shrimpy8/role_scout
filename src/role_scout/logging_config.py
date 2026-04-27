@@ -14,8 +14,8 @@ Bind correlation_id once at the start of each run:
 """
 
 import structlog
-from jobsearch.logging import get_logger as _p1_get_logger
-from jobsearch.logging import setup_logging
+from role_scout.compat.logging import get_logger as _p1_get_logger
+from role_scout.compat.logging import setup_logging
 
 
 def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:

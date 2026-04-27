@@ -23,7 +23,7 @@ from typing import Any
 
 import structlog
 
-from jobsearch.db.qualified_jobs import get_job_by_hash_id
+from role_scout.compat.db.qualified_jobs import get_job_by_hash_id
 from role_scout.claude_client import call_claude
 from role_scout.config import Settings
 from role_scout.dal.tailor_dal import get_cached_tailor, write_tailor
