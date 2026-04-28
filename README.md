@@ -100,12 +100,6 @@ Connect Claude Code to Role Scout and ask questions like:
 
 Nine tools exposed over stdio: `get_pipeline_status`, `run_pipeline`, `get_jobs`, `get_job_detail`, `tailor_resume`, `get_run_logs`, `get_watchlist`, `add_to_watchlist`, `remove_from_watchlist`.
 
-### Eval harness
-Three eval tracks run against 50+ ground-truth jobs:
-- **Scorer eval**: Spearman correlation between Claude scores and manual labels
-- **Alignment eval**: LLM-as-judge (cross-model) on Claude's scoring reasoning
-- **Tailor eval**: LLM-as-judge + 20% manual spot-check on generated bullets
-
 ---
 
 ## Requirements
@@ -347,7 +341,6 @@ role_scout/
 │   │   └── export.py       # Post-approval export
 │   ├── dal/                # Phase 2 data access layer
 │   ├── mcp_server/         # MCP stdio server + tool schemas
-│   ├── eval/               # Eval harness (scorer, alignment, tailor)
 │   ├── prompts/            # scoring_system.md, alignment_system.md,
 │   │                       # resume_tailor_system.md, scoring_reflection_system.md
 │   ├── graph.py            # LangGraph DAG definition
