@@ -84,16 +84,19 @@
     var tailorBtn = e.target.closest('.tailor-btn');
     if (tailorBtn) {
       var hashId = tailorBtn.getAttribute('data-hash-id');
+      console.log('[tailor] clicked, hashId=', hashId);
       var jobRow = tailorBtn.closest('tr');
-      if (!jobRow) return;
+      console.log('[tailor] jobRow=', jobRow);
+      if (!jobRow) { console.log('[tailor] no jobRow'); return; }
       var panelRow = jobRow.nextElementSibling;
-      if (!panelRow || !panelRow.classList.contains('tailor-panel-row')) return;
+      console.log('[tailor] panelRow=', panelRow);
+      if (!panelRow || !panelRow.classList.contains('tailor-panel-row')) { console.log('[tailor] no panelRow or wrong class', panelRow && panelRow.className); return; }
       var panel = panelRow.querySelector('.tailor-panel');
-      if (!panel) return;
+      console.log('[tailor] panel=', panel);
+      if (!panel) { console.log('[tailor] no panel'); return; }
 
-      // Don't allow toggling closed while a fetch is in progress
       var isLoading = !panel.querySelector('.tailor-loading').hidden;
-      if (isLoading) return;
+      if (isLoading) { console.log('[tailor] loading in progress, ignoring click'); return; }
 
       var isOpen = !panelRow.classList.contains('d-none');
       if (isOpen) {
@@ -106,6 +109,7 @@
 
       var resultShown = !panel.querySelector('.tailor-result').hidden;
       var errorShown = !panel.querySelector('.tailor-error').hidden;
+      console.log('[tailor] resultShown=', resultShown, 'errorShown=', errorShown);
       if (!resultShown && !errorShown) {
         fetchTailor(hashId, false, panel);
       }
