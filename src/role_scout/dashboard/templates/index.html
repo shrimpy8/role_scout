@@ -119,6 +119,40 @@
     <p id="no-match-msg" class="text-muted" hidden>No jobs match this threshold. Drag left to see more.</p>
   </div>
 </div>
+<!-- Tailor modal -->
+<div class="modal fade" id="tailorModal" tabindex="-1" aria-labelledby="tailorModalLabel" aria-modal="true" role="dialog">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="tailorModalLabel">Tailored Resume</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="tailor-modal-loading" class="text-center py-4">
+          <div class="spinner-border" role="status"></div>
+          <p class="mt-2 text-muted">Claude is tailoring — usually ~15s</p>
+        </div>
+        <div id="tailor-modal-error" class="alert alert-danger" hidden></div>
+        <div id="tailor-modal-result" hidden>
+          <div class="d-flex align-items-center mb-3">
+            <span id="tailor-modal-badge" class="badge me-2"></span>
+            <span id="tailor-modal-job-title" class="text-muted small"></span>
+          </div>
+          <h6>Summary <button class="btn btn-sm btn-link p-0 ms-1" id="tailor-copy-summary">Copy</button></h6>
+          <p id="tailor-modal-summary" class="small border rounded p-2 bg-light"></p>
+          <h6>Resume Bullets <button class="btn btn-sm btn-link p-0 ms-1" id="tailor-copy-bullets">Copy all</button></h6>
+          <ul id="tailor-modal-bullets" class="small"></ul>
+          <h6>Keywords</h6>
+          <p id="tailor-modal-keywords" class="small text-muted"></p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="tailor-refresh-btn">↻ Refresh</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>

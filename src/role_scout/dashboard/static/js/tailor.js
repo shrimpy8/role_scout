@@ -1,56 +1,66 @@
 (function () {
   'use strict';
 
+  var currentHashId = null;
+
+  function csrfToken() {
+    var el = document.querySelector('meta[name="csrf-token"]');
+    return el ? el.content : '';
+  }
+
   function escHtml(str) {
     return String(str ?? '').replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
 
-  function csrfToken() {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.content : '';
+  function getModal() {
+    return document.getElementById('tailorModal');
   }
 
-  function showLoading(panel) {
-    panel.querySelector('.tailor-loading').hidden = false;
-    panel.querySelector('.tailor-result').hidden = true;
-    panel.querySelector('.tailor-error').hidden = true;
+  function showLoading() {
+    document.getElementById('tailor-modal-loading').hidden = false;
+    document.getElementById('tailor-modal-error').hidden = true;
+    document.getElementById('tailor-modal-result').hidden = true;
   }
 
-  function showError(panel, msg) {
-    panel.querySelector('.tailor-loading').hidden = true;
-    panel.querySelector('.tailor-result').hidden = true;
-    const errEl = panel.querySelector('.tailor-error');
-    errEl.textContent = msg;
-    errEl.hidden = false;
+  function showError(msg) {
+    document.getElementById('tailor-modal-loading').hidden = true;
+    document.getElementById('tailor-modal-error').hidden = false;
+    document.getElementById('tailor-modal-error').textContent = msg;
+    document.getElementById('tailor-modal-result').hidden = true;
   }
 
-  function showResult(panel, data) {
-    panel.querySelector('.tailor-loading').hidden = true;
-    panel.querySelector('.tailor-error').hidden = true;
+  function showResult(data, jobTitle, company) {
+    document.getElementById('tailor-modal-loading').hidden = true;
+    document.getElementById('tailor-modal-error').hidden = true;
 
-    const badge = panel.querySelector('.tailor-badge');
+    var badge = document.getElementById('tailor-modal-badge');
     badge.textContent = data.cached ? 'cached' : 'fresh';
-    badge.className = 'badge ms-1 ' + (data.cached ? 'badge-cached' : 'badge-fresh');
+    badge.className = 'badge me-2 ' + (data.cached ? 'bg-secondary' : 'bg-success');
 
-    panel.querySelector('.tailor-summary-text').textContent = data.tailored_summary || '';
+    document.getElementById('tailor-modal-job-title').textContent = jobTitle + ' @ ' + company;
+    document.getElementById('tailor-modal-summary').textContent = data.tailored_summary || '';
 
-    const ul = panel.querySelector('.tailor-bullets-list');
+    var ul = document.getElementById('tailor-modal-bullets');
     ul.innerHTML = (data.tailored_bullets || [])
-      .map(b => '<li>' + escHtml(b) + '</li>')
+      .map(function (b) { return '<li class="mb-1">' + escHtml(b) + '</li>'; })
       .join('');
 
-    panel.querySelector('.tailor-keywords').textContent =
+    document.getElementById('tailor-modal-keywords').textContent =
       (data.keywords_incorporated || []).join(', ');
 
-    panel.querySelector('.tailor-result').hidden = false;
+    document.getElementById('tailor-modal-result').hidden = false;
   }
 
-  async function fetchTailor(hashId, force, panel) {
-    showLoading(panel);
+  function copyText(text) {
+    navigator.clipboard.writeText(text).catch(function () {});
+  }
+
+  async function fetchTailor(hashId, force, jobTitle, company) {
+    showLoading();
     try {
-      const resp = await fetch('/api/tailor/' + hashId, {
+      var resp = await fetch('/api/tailor/' + hashId, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -58,96 +68,71 @@
         },
         body: JSON.stringify({ force: !!force }),
       });
-      let json = null;
+      var json;
       try {
         json = await resp.json();
       } catch (_) {
-        showError(panel, 'Tailoring failed — server returned HTTP ' + resp.status + '. Check terminal for details.');
+        showError('Server returned HTTP ' + resp.status + ' (non-JSON). Check terminal.');
         return;
       }
       if (!resp.ok) {
-        showError(panel, (json && json.error && json.error.message) || ('Tailoring failed — HTTP ' + resp.status + '.'));
+        showError((json && json.error && json.error.message) || 'HTTP ' + resp.status);
         return;
       }
-      showResult(panel, json);
+      showResult(json, jobTitle, company);
     } catch (e) {
-      showError(panel, 'Tailoring failed — could not reach server. Is it still running?');
+      showError('Network error — is the server still running?');
     }
   }
 
-  function copyText(text) {
-    navigator.clipboard.writeText(text).catch(function () {});
+  function openModal(hashId, jobTitle, company, force) {
+    currentHashId = hashId;
+    var modalEl = getModal();
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    document.getElementById('tailorModalLabel').textContent =
+      'Tailored Resume — ' + company;
+    modal.show();
+    fetchTailor(hashId, force, jobTitle, company);
   }
 
   document.addEventListener('click', function (e) {
-    // Tailor button — use DOM traversal to find paired panel row
+    // Tailor button on job row
     var tailorBtn = e.target.closest('.tailor-btn');
     if (tailorBtn) {
       var hashId = tailorBtn.getAttribute('data-hash-id');
-      console.log('[tailor] clicked, hashId=', hashId);
-      var jobRow = tailorBtn.closest('tr');
-      console.log('[tailor] jobRow=', jobRow);
-      if (!jobRow) { console.log('[tailor] no jobRow'); return; }
-      var panelRow = jobRow.nextElementSibling;
-      console.log('[tailor] panelRow=', panelRow);
-      if (!panelRow || !panelRow.classList.contains('tailor-panel-row')) { console.log('[tailor] no panelRow or wrong class', panelRow && panelRow.className); return; }
-      var panel = panelRow.querySelector('.tailor-panel');
-      console.log('[tailor] panel=', panel);
-      if (!panel) { console.log('[tailor] no panel'); return; }
-
-      var isLoading = !panel.querySelector('.tailor-loading').hidden;
-      if (isLoading) { console.log('[tailor] loading in progress, ignoring click'); return; }
-
-      var isOpen = !panelRow.classList.contains('d-none');
-      if (isOpen) {
-        panelRow.classList.add('d-none');
-        return;
-      }
-
-      panelRow.classList.remove('d-none');
-      panelRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-      var resultShown = !panel.querySelector('.tailor-result').hidden;
-      var errorShown = !panel.querySelector('.tailor-error').hidden;
-      console.log('[tailor] resultShown=', resultShown, 'errorShown=', errorShown);
-      if (!resultShown && !errorShown) {
-        fetchTailor(hashId, false, panel);
-      }
+      var row = tailorBtn.closest('tr');
+      var jobTitle = row ? row.querySelector('td:first-child').textContent.trim() : '';
+      var company = row ? row.getAttribute('data-company') || '' : '';
+      openModal(hashId, jobTitle, company, false);
       return;
     }
 
     // Copy summary
-    var copySum = e.target.closest('.copy-summary');
-    if (copySum) {
-      var panel2 = copySum.closest('.tailor-panel');
-      var text = (panel2 && panel2.querySelector('.tailor-summary-text').textContent) || '';
+    if (e.target.id === 'tailor-copy-summary') {
+      var text = document.getElementById('tailor-modal-summary').textContent;
       copyText(text);
-      copySum.textContent = 'Copied!';
-      setTimeout(function () { copySum.textContent = 'Copy'; }, 1500);
+      e.target.textContent = 'Copied!';
+      setTimeout(function () { e.target.textContent = 'Copy'; }, 1500);
       return;
     }
 
     // Copy bullets
-    var copyBul = e.target.closest('.copy-bullets');
-    if (copyBul) {
-      var panel3 = copyBul.closest('.tailor-panel');
-      var items = panel3 ? panel3.querySelectorAll('.tailor-bullets-list li') : [];
+    if (e.target.id === 'tailor-copy-bullets') {
+      var items = document.querySelectorAll('#tailor-modal-bullets li');
       var lines = Array.from(items).map(function (li) { return '• ' + li.textContent; }).join('\n');
       copyText(lines);
-      copyBul.textContent = 'Copied!';
-      setTimeout(function () { copyBul.textContent = 'Copy all'; }, 1500);
+      e.target.textContent = 'Copied!';
+      setTimeout(function () { e.target.textContent = 'Copy all'; }, 1500);
       return;
     }
 
-    // Refresh tailor
-    var refreshBtn = e.target.closest('.refresh-tailor');
-    if (refreshBtn) {
-      var hashId2 = refreshBtn.getAttribute('data-hash-id');
-      var jobRow2 = refreshBtn.closest('tr');
-      var panelRow2 = jobRow2 && jobRow2.previousElementSibling;
-      // refresh-tailor is inside the panel row, find panel from parent
-      var panel4 = refreshBtn.closest('.tailor-panel');
-      if (panel4) fetchTailor(hashId2, true, panel4);
+    // Refresh
+    if (e.target.id === 'tailor-refresh-btn') {
+      if (currentHashId) {
+        var title = document.getElementById('tailor-modal-job-title').textContent;
+        var parts = title.split(' @ ');
+        openModal(currentHashId, parts[0] || '', parts[1] || '', true);
+      }
       return;
     }
   });
