@@ -12,14 +12,6 @@
     return el ? el.content : '';
   }
 
-  function getPanel(hashId) {
-    return document.getElementById('tailor-' + hashId);
-  }
-
-  function getPanelRow(hashId) {
-    return document.querySelector('tr.tailor-panel-row[data-for="' + hashId + '"]');
-  }
-
   function showLoading(panel) {
     panel.querySelector('.tailor-loading').hidden = false;
     panel.querySelector('.tailor-result').hidden = true;
@@ -64,77 +56,88 @@
           'Content-Type': 'application/json',
           'X-CSRFToken': csrfToken(),
         },
-        body: JSON.stringify({ force: force }),
+        body: JSON.stringify({ force: !!force }),
       });
-      const json = await resp.json();
+      let json = null;
+      try {
+        json = await resp.json();
+      } catch (_) {
+        showError(panel, 'Tailoring failed — server returned HTTP ' + resp.status + '. Check terminal for details.');
+        return;
+      }
       if (!resp.ok) {
-        const msg = json?.error?.message || 'Tailoring failed — server error.';
-        showError(panel, msg);
+        showError(panel, (json && json.error && json.error.message) || ('Tailoring failed — HTTP ' + resp.status + '.'));
         return;
       }
       showResult(panel, json);
     } catch (e) {
-      showError(panel, 'Tailoring failed — network error, try again.');
+      showError(panel, 'Tailoring failed — could not reach server. Is it still running?');
     }
   }
 
   function copyText(text) {
-    navigator.clipboard.writeText(text).catch(() => {});
+    navigator.clipboard.writeText(text).catch(function () {});
   }
 
   document.addEventListener('click', function (e) {
-    // Tailor button — toggle panel + fetch if not yet loaded
-    const tailorBtn = e.target.closest('.tailor-btn');
+    // Tailor button — use DOM traversal to find paired panel row
+    var tailorBtn = e.target.closest('.tailor-btn');
     if (tailorBtn) {
-      const hashId = tailorBtn.dataset.hashId;
-      const panelRow = getPanelRow(hashId);
-      const panel = getPanel(hashId);
-      if (!panelRow || !panel) return;
+      var hashId = tailorBtn.getAttribute('data-hash-id');
+      var jobRow = tailorBtn.closest('tr');
+      if (!jobRow) return;
+      var panelRow = jobRow.nextElementSibling;
+      if (!panelRow || !panelRow.classList.contains('tailor-panel-row')) return;
+      var panel = panelRow.querySelector('.tailor-panel');
+      if (!panel) return;
 
-      const isOpen = !panelRow.classList.contains('d-none');
+      var isOpen = !panelRow.classList.contains('d-none');
       if (isOpen) {
         panelRow.classList.add('d-none');
         return;
       }
 
       panelRow.classList.remove('d-none');
-      // Only fetch if result not already shown
-      if (panel.querySelector('.tailor-result').hidden &&
-          panel.querySelector('.tailor-error').hidden) {
+      var resultShown = !panel.querySelector('.tailor-result').hidden;
+      var errorShown = !panel.querySelector('.tailor-error').hidden;
+      if (!resultShown && !errorShown) {
         fetchTailor(hashId, false, panel);
       }
       return;
     }
 
     // Copy summary
-    const copySum = e.target.closest('.copy-summary');
+    var copySum = e.target.closest('.copy-summary');
     if (copySum) {
-      const panel = copySum.closest('.tailor-panel');
-      const text = panel?.querySelector('.tailor-summary-text')?.textContent || '';
+      var panel2 = copySum.closest('.tailor-panel');
+      var text = (panel2 && panel2.querySelector('.tailor-summary-text').textContent) || '';
       copyText(text);
       copySum.textContent = 'Copied!';
-      setTimeout(() => { copySum.textContent = 'Copy'; }, 1500);
+      setTimeout(function () { copySum.textContent = 'Copy'; }, 1500);
       return;
     }
 
     // Copy bullets
-    const copyBul = e.target.closest('.copy-bullets');
+    var copyBul = e.target.closest('.copy-bullets');
     if (copyBul) {
-      const panel = copyBul.closest('.tailor-panel');
-      const items = panel?.querySelectorAll('.tailor-bullets-list li') || [];
-      const text = Array.from(items).map(li => '• ' + li.textContent).join('\n');
-      copyText(text);
+      var panel3 = copyBul.closest('.tailor-panel');
+      var items = panel3 ? panel3.querySelectorAll('.tailor-bullets-list li') : [];
+      var lines = Array.from(items).map(function (li) { return '• ' + li.textContent; }).join('\n');
+      copyText(lines);
       copyBul.textContent = 'Copied!';
-      setTimeout(() => { copyBul.textContent = 'Copy all'; }, 1500);
+      setTimeout(function () { copyBul.textContent = 'Copy all'; }, 1500);
       return;
     }
 
     // Refresh tailor
-    const refreshBtn = e.target.closest('.refresh-tailor');
+    var refreshBtn = e.target.closest('.refresh-tailor');
     if (refreshBtn) {
-      const hashId = refreshBtn.dataset.hashId;
-      const panel = getPanel(hashId);
-      if (panel) fetchTailor(hashId, true, panel);
+      var hashId2 = refreshBtn.getAttribute('data-hash-id');
+      var jobRow2 = refreshBtn.closest('tr');
+      var panelRow2 = jobRow2 && jobRow2.previousElementSibling;
+      // refresh-tailor is inside the panel row, find panel from parent
+      var panel4 = refreshBtn.closest('.tailor-panel');
+      if (panel4) fetchTailor(hashId2, true, panel4);
       return;
     }
   });
