@@ -49,10 +49,10 @@ Role Scout is a single self-contained repository. Phase 1 (the linear fetch-norm
 | **discovery** | Fetches jobs from all active sources in parallel; records per-source health |
 | **normalize** | Deduplicates and normalises raw listings; trims raw_by_source from state |
 | **enrichment** | Fetches full job descriptions where needed |
-| **scoring** | Sends jobs to Claude in batches; records token usage and cost |
-| **reflection** | Second Claude pass on borderline jobs (70-89%); reviews subscores for internal consistency |
-| **review** | Persists qualified jobs, logs run metrics, then issues interrupt() for HiTL |
-| **export** | Runs after human approval; writes to the export target |
+| **scoring** | Sends enriched jobs to Claude in batches of 10. Each job gets a `match_pct` (0–100) and per-dimension subscores against your candidate profile. Aborts early if accumulated spend has already exceeded `MAX_COST_USD`. |
+| **reflection** | For every job that scored in the borderline band (70–89%), sends a second Claude call with the original score and subscores and asks it to check for internal inconsistencies. Scores may move up or down; jobs that clear the qualify threshold after reflection are promoted to qualified. Skipped entirely if no borderline jobs exist. |
+| **review** | Issues a LangGraph `interrupt()` that suspends the graph and waits for a human decision. Scheduled and MCP-triggered runs bypass this and auto-approve. Manual runs surface an Approve / Cancel banner in the dashboard (or a CLI prompt). If no decision arrives within `INTERRUPT_TTL_HOURS` (default 4 h) the TTL watcher resumes the graph with `cancel_reason=ttl_expired`. |
+| **output** | Terminal node — always runs regardless of approval or cancellation. On approval: inserts qualified jobs into `qualified_jobs`, writes each job description to `output/jds/<hash_id>.txt`, and records the completed run (token counts, cost, source health) in `run_log`. On cancellation: records the cancel reason in `run_log` and exits. Dry-run mode skips all writes. |
 
 **HiTL flow**: the graph pauses at `review`. The Flask dashboard polls `/api/pipeline/status` every 5 seconds and renders an approval banner. You click Approve or Cancel (or use keyboard shortcuts A / Esc). If no response arrives within 4 hours the run auto-cancels and is logged as `cancel_reason=ttl_expired`.
 
