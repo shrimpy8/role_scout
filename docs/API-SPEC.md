@@ -7,9 +7,9 @@
 | Version | 1.0 |
 | Owner | [project-owner] |
 | Status | Approved |
-| Updated | 2026-04-23 |
+| Updated | 2026-04-27 |
 
-> Implementation-ready OpenAPI 3.1 contract for the 7 new Flask routes added on top of the Phase 1 dashboard. All routes bind to `127.0.0.1` only. All write routes require CSRF.
+> Implementation-ready OpenAPI 3.1 contract for the 11 Flask routes in the Phase 2 dashboard. All routes bind to `127.0.0.1` only. All write routes require CSRF.
 
 ---
 
@@ -23,9 +23,13 @@
 | 2 | POST | `/api/pipeline/resume` | Approve or cancel a paused run |
 | 3 | POST | `/api/pipeline/extend` | Extend interrupt TTL by 2h (once per run) |
 | 4 | POST | `/api/tailor/{hash_id}` | Tailor resume for a qualified job |
-| 5 | POST | `/api/watchlist` | Add a company to watchlist |
-| 6 | DELETE | `/api/watchlist/{company}` | Remove a company from watchlist |
-| 7 | GET | `/api/runs` | Paginated debug listing of recent runs |
+| 5 | GET | `/api/watchlist` | Get current watchlist |
+| 6 | POST | `/api/watchlist` | Add a company to watchlist |
+| 7 | DELETE | `/api/watchlist/{company}` | Remove a company from watchlist |
+| 8 | GET | `/api/runs` | Paginated debug listing of recent runs |
+| 9 | POST | `/api/status/{hash_id}` | Inline status update for a job |
+| 10 | POST | `/api/alignment/{hash_id}` | On-demand JD alignment via Claude |
+| 11 | GET | `/jds/{filename}` | Download raw job description file |
 
 ### 1.2 Versioning — no `/v1/` prefix
 
@@ -550,6 +554,25 @@ paths:
             - CLAUDE_API_ERROR — upstream failure; body includes detail string (no stack trace)
 
   /api/watchlist:
+    get:
+      summary: Get the current watchlist
+      description: Returns the full company list. Used by watchlist.js on load and after banner-driven revision changes.
+      responses:
+        "200":
+          description: Current watchlist
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [watchlist]
+                properties:
+                  watchlist:
+                    type: array
+                    items: { type: string }
+              example:
+                watchlist: ["Anthropic", "WorkOS"]
+        "500": { $ref: "#/components/responses/Error500" }
+
     post:
       summary: Add a company to the watchlist
       description: Idempotent. Adding an existing company returns 200 with the unchanged list.
@@ -643,6 +666,138 @@ paths:
                     pagination: { limit: 20, offset: 0, total: 47, has_more: true }
         "422": { $ref: "#/components/responses/Error422" }
 
+  /api/status/{hash_id}:
+    post:
+      summary: Inline status update for a qualified job
+      description: Updates the `status` column in `qualified_jobs`. Called by status.js on every select change.
+      security: [{ csrf: [] }]
+      parameters:
+        - $ref: "#/components/parameters/HashIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [new, reviewed, applied, rejected]
+            example: { status: "reviewed" }
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  hash_id: { type: string }
+              example: { status: "reviewed", hash_id: "a1b2c3d4e5f60718" }
+        "400":
+          description: |
+            Possible error codes:
+            - INVALID_STATUS — value not in allowed enum
+        "403": { $ref: "#/components/responses/Error403CSRF" }
+        "404":
+          description: |
+            Possible error codes:
+            - NOT_FOUND — hash_id does not exist in qualified_jobs
+        "500":
+          description: |
+            Possible error codes:
+            - DB_ERROR — SQLite write failed
+
+  /api/alignment/{hash_id}:
+    post:
+      summary: Generate (or return cached) JD alignment analysis for a qualified job
+      description: |
+        Calls Claude with the job description and `config/resume_summary.md` to produce:
+        strong_matches, reframing_opportunities, genuine_gaps, overall_take.
+        Result is stored in `jd_alignment` (JSON) on the `qualified_jobs` row.
+        Pass `force=true` to bypass the cache and regenerate.
+      security: [{ csrf: [] }]
+      parameters:
+        - $ref: "#/components/parameters/HashIdPath"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force:
+                  type: boolean
+                  default: false
+            example: { force: false }
+      responses:
+        "200":
+          description: Alignment result (fresh or cached)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [strong_matches, reframing_opportunities, genuine_gaps, overall_take]
+                properties:
+                  strong_matches:
+                    type: array
+                    items: { type: string }
+                  reframing_opportunities:
+                    type: array
+                    items: { type: string }
+                  genuine_gaps:
+                    type: array
+                    items: { type: string }
+                  overall_take: { type: string }
+                  cached: { type: boolean }
+        "400":
+          description: |
+            Possible error codes:
+            - NO_DESCRIPTION — job has no description or requirements text to analyze
+        "403": { $ref: "#/components/responses/Error403CSRF" }
+        "404":
+          description: |
+            Possible error codes:
+            - NOT_FOUND — hash_id does not exist in qualified_jobs
+        "500":
+          description: |
+            Possible error codes:
+            - RESUME_MISSING — config/resume_summary.md not found
+            - PROMPT_MISSING — prompts/alignment_system.md not found
+            - CLAUDE_ERROR — upstream Claude API failure
+            - PARSE_ERROR — Claude response could not be parsed as expected JSON
+
+  /jds/{filename}:
+    get:
+      summary: Download a raw job description text file
+      description: |
+        Serves files from `output/jds/`. Path traversal is blocked — requests
+        containing `..` or an absolute path are rejected with 400.
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+          description: JD filename (e.g. `a1b2c3d4e5f60718.txt`); must not contain `..`
+          example: "a1b2c3d4e5f60718.txt"
+      responses:
+        "200":
+          description: Raw text file
+          content:
+            text/plain:
+              schema: { type: string }
+        "400":
+          description: |
+            Possible error codes:
+            - INVALID_PATH — filename contains `..` or starts with `/`
+        "404":
+          description: |
+            Possible error codes:
+            - NOT_FOUND — file does not exist in output/jds/
+
 security:
   - {}     # Most endpoints require no auth (localhost-only); CSRF is applied per-route
 ```
@@ -661,9 +816,13 @@ All 2xx-supported endpoints may additionally return generic 5xx with `INTERNAL_E
 | `POST /api/pipeline/resume` | `CSRF_INVALID`, `VALIDATION_ERROR`, `NO_ACTIVE_RUN`, `ALREADY_RESOLVED` | `INTERNAL_ERROR`, `PIPELINE_RESUME_ERROR` |
 | `POST /api/pipeline/extend` | `CSRF_INVALID`, `NO_ACTIVE_RUN`, `TTL_ALREADY_EXTENDED` | `INTERNAL_ERROR` |
 | `POST /api/tailor/{hash_id}` | `CSRF_INVALID`, `VALIDATION_ERROR`, `NOT_QUALIFIED`, `JOB_NOT_FOUND` | `CLAUDE_API_ERROR`, `INTERNAL_ERROR` |
+| `GET /api/watchlist` | — | `INTERNAL_ERROR` |
 | `POST /api/watchlist` | `CSRF_INVALID`, `VALIDATION_ERROR` | `WATCHLIST_WRITE_ERROR`, `INTERNAL_ERROR` |
 | `DELETE /api/watchlist/{company}` | `CSRF_INVALID`, `COMPANY_NOT_IN_WATCHLIST` | `WATCHLIST_WRITE_ERROR`, `INTERNAL_ERROR` |
 | `GET /api/runs` | `VALIDATION_ERROR` (bad limit/offset) | `INTERNAL_ERROR` |
+| `POST /api/status/{hash_id}` | `CSRF_INVALID`, `INVALID_STATUS`, `NOT_FOUND` | `DB_ERROR`, `INTERNAL_ERROR` |
+| `POST /api/alignment/{hash_id}` | `CSRF_INVALID`, `NO_DESCRIPTION`, `NOT_FOUND` | `RESUME_MISSING`, `PROMPT_MISSING`, `CLAUDE_ERROR`, `PARSE_ERROR`, `INTERNAL_ERROR` |
+| `GET /jds/{filename}` | `INVALID_PATH` | `NOT_FOUND`, `INTERNAL_ERROR` |
 
 ---
 

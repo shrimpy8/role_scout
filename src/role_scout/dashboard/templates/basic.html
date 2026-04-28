@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Role Scout Dashboard{% endblock %}
+{% block content %}
+<div class="row">
+  <!-- Sidebar -->
+  <div class="col-md-3">
+    <div class="card mb-3">
+      <div class="card-body">
+        <h2 class="card-title h6">Filter</h2>
+        <label for="threshold-slider" class="form-label">
+          Match threshold: <span id="threshold-val">{{ threshold }}</span>
+        </label>
+        <input type="range" id="threshold-slider" class="form-range"
+               min="0" max="100" value="{{ threshold }}"
+               aria-valuenow="{{ threshold }}" aria-valuemin="0" aria-valuemax="100">
+        <div class="text-muted small mt-1" id="threshold-count"></div>
+        <div class="text-muted small">
+          <i class="bi bi-info-circle"></i>
+          Filter only — never re-scores
+        </div>
+      </div>
+    </div>
+
+    <!-- Watchlist panel -->
+    <div class="card mb-3">
+      <div class="card-body">
+        <h2 class="card-title h6">Watchlist</h2>
+        <div id="watchlist-list">
+          <div class="text-muted small">No watchlist companies yet. Add one to highlight their jobs with ★.</div>
+        </div>
+        <div class="mt-2">
+          <label for="watchlist-input" class="visually-hidden">Company name</label>
+          <div class="input-group input-group-sm">
+            <input type="text" id="watchlist-input" class="form-control"
+                   placeholder="Add company…" maxlength="100" aria-label="Company name">
+            <button id="watchlist-add-btn" class="btn btn-outline-secondary" type="button">Add</button>
+          </div>
+          <div id="watchlist-error" class="text-danger small mt-1" hidden></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="col-md-9">
+    <h1>Role Scout</h1>
+    <p class="text-muted small" id="run-info"></p>
+
+    <div class="table-responsive">
+    <table class="table table-sm table-hover" id="jobs-table">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Company</th>
+          <th>Location</th>
+          <th>Score</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if not jobs %}
+        <tr id="no-jobs-msg">
+          <td colspan="6" class="text-center text-muted py-4">No jobs yet — run the pipeline to discover matches.</td>
+        </tr>
+        {% endif %}
+        {% for job in jobs %}
+        <tr data-match-pct="{{ job.match_pct }}" data-hash-id="{{ job.hash_id }}"
+            data-company="{{ job.company | lower }}">
+          <td>{{ job.title }}</td>
+          <td>
+            {{ job.company }}
+            <span class="watchlist-star" data-company="{{ job.company | lower }}" hidden>★</span>
+          </td>
+          <td>{{ job.location }}</td>
+          <td>{{ job.match_pct }}</td>
+          <td>{{ job.status }}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-primary tailor-btn"
+                    data-hash-id="{{ job.hash_id }}"
+                    aria-label="Tailor resume for {{ job.title }} at {{ job.company }}">
+              Tailor
+            </button>
+          </td>
+        </tr>
+        <tr class="tailor-panel-row d-none" data-for="{{ job.hash_id }}">
+          <td colspan="6">
+            <div class="tailor-panel p-3" id="tailor-{{ job.hash_id }}">
+              <div class="tailor-loading text-muted small" hidden>
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                Claude is tailoring — usually ~8s
+              </div>
+              <div class="tailor-result" hidden>
+                <div class="mb-2">
+                  <strong>Summary</strong>
+                  <span class="badge ms-1 tailor-badge"></span>
+                  <button class="btn btn-sm btn-link copy-summary" title="Copy summary">Copy</button>
+                </div>
+                <p class="tailor-summary-text small"></p>
+                <div class="mb-2">
+                  <strong>Bullets</strong>
+                  <button class="btn btn-sm btn-link copy-bullets" title="Copy all bullets">Copy all</button>
+                </div>
+                <ul class="tailor-bullets-list small"></ul>
+                <div class="mb-1"><strong>Keywords</strong></div>
+                <p class="tailor-keywords small text-muted"></p>
+                <button class="btn btn-sm btn-outline-secondary refresh-tailor" data-hash-id="{{ job.hash_id }}">
+                  ↻ Refresh
+                </button>
+              </div>
+              <div class="tailor-error text-danger small" hidden></div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p id="no-match-msg" class="text-muted" hidden>No jobs match this threshold. Drag left to see more.</p>
+  </div>
+</div>
+<!-- Tailor modal -->
+<div class="modal fade" id="tailorModal" tabindex="-1" aria-labelledby="tailorModalLabel" aria-modal="true" role="dialog">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="tailorModalLabel">Tailored Resume</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="tailor-modal-loading" class="text-center py-4">
+          <div class="spinner-border" role="status"></div>
+          <p class="mt-2 text-muted">Claude is tailoring — usually ~15s</p>
+        </div>
+        <div id="tailor-modal-error" class="alert alert-danger" hidden></div>
+        <div id="tailor-modal-result" hidden>
+          <div class="d-flex align-items-center mb-3">
+            <span id="tailor-modal-badge" class="badge me-2"></span>
+            <span id="tailor-modal-job-title" class="text-muted small"></span>
+          </div>
+          <h6>Summary <button class="btn btn-sm btn-link p-0 ms-1" id="tailor-copy-summary">Copy</button></h6>
+          <p id="tailor-modal-summary" class="small border rounded p-2 bg-light"></p>
+          <h6>Resume Bullets <button class="btn btn-sm btn-link p-0 ms-1" id="tailor-copy-bullets">Copy all</button></h6>
+          <ul id="tailor-modal-bullets" class="small"></ul>
+          <h6>Keywords</h6>
+          <p id="tailor-modal-keywords" class="small text-muted"></p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="tailor-refresh-btn">↻ Refresh</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+window.RS_CONFIG = {
+  threshold: {{ threshold }},
+  csrfToken: document.querySelector('meta[name="csrf-token"]').content
+};
+</script>
+{% endblock %}

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,29 +7,438 @@
   <title>{% block title %}Role Scout{% endblock %}</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
   <style>
-    .banner-review { background: #fff3cd; border-left: 4px solid #ffc107; }
-    .banner-cancelled { background: #f8f9fa; border-left: 4px solid #6c757d; }
-    .banner-error { background: #f8d7da; border-left: 4px solid #dc3545; }
-    .badge-fresh { background-color: #198754; }
-    .badge-cached { background-color: #6c757d; }
-    .tailor-panel { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; }
-    .watchlist-star { color: #ffc107; }
-    .ttl-warning { color: #fd7e14; }
-    .cost-warning { background: #fff3cd; border: 1px solid #ffc107; }
+    /* ── Design tokens ───────────────────────────────────────────────── */
+    :root {
+      --bg-base:      #f4f4f8;
+      --bg-surface:   #ffffff;
+      --bg-elevated:  #ededf2;
+      --border:       #e2e2e8;
+      --border-strong:#c4c4cc;
+      --text-primary: #18181b;
+      --text-secondary:#3f3f46;
+      --text-muted:   #71717a;
+      --text-faint:   #a1a1aa;
+      --text-ghost:   #d4d4d8;
+      --accent:       #6c5ce7;
+      --accent-bg:    #ede9fe;
+      --green:        #16a34a;
+      --green-bg:     #dcfce7;
+      --amber:        #d97706;
+      --amber-bg:     #fef9c3;
+      --red:          #dc2626;
+      --red-bg:       #fee2e2;
+      --blue:         #2563eb;
+      --blue-bg:      #dbeafe;
+      --topbar-h:     48px;
+      --sidebar-w:    200px;
+    }
+    [data-theme="dark"] {
+      --bg-base:      #0f0f11;
+      --bg-surface:   #18181b;
+      --bg-elevated:  #1c1c1f;
+      --border:       #27272a;
+      --border-strong:#3f3f46;
+      --text-primary: #e2e2e5;
+      --text-secondary:#a1a1aa;
+      --text-muted:   #71717a;
+      --text-faint:   #52525b;
+      --text-ghost:   #3f3f46;
+      --accent:       #7c6af7;
+      --accent-bg:    #2e1f6e;
+      --green:        #22c55e;
+      --green-bg:     #052e16;
+      --amber:        #f59e0b;
+      --amber-bg:     #451a03;
+      --red:          #ef4444;
+      --red-bg:       #450a0a;
+      --blue:         #60a5fa;
+      --blue-bg:      #1e3a5f;
+    }
+
+    /* ── Base layout ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    a { color: var(--accent); }
+    a:hover { color: var(--accent); opacity: 0.8; }
     [hidden] { display: none !important; }
+
+    /* ── Topbar ──────────────────────────────────────────────────────── */
+    #rs-topbar {
+      position: sticky; top: 0; z-index: 100;
+      height: var(--topbar-h);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 16px;
+    }
+    #rs-topbar .logo {
+      font-weight: 700; font-size: 15px;
+      color: var(--text-primary); text-decoration: none;
+      letter-spacing: -0.3px;
+    }
+    #rs-topbar .logo span { color: var(--accent); }
+    #rs-topbar .spacer { flex: 1; }
+    #rs-topbar .meta { color: var(--text-muted); font-size: 12px; }
+    #theme-toggle {
+      background: none; border: 1px solid var(--border);
+      border-radius: 6px; padding: 4px 8px; cursor: pointer;
+      color: var(--text-muted); font-size: 14px; line-height: 1;
+    }
+    #theme-toggle:hover { border-color: var(--border-strong); color: var(--text-primary); }
+
+    /* ── Banner / cost warning ───────────────────────────────────────── */
+    #rs-banner-wrap { padding: 0 16px; }
+    .banner-review  { background: #fff3cd; border-left: 4px solid #ffc107; }
+    .banner-cancelled { background: var(--bg-elevated); border-left: 4px solid var(--border-strong); }
+    .banner-error   { background: var(--red-bg); border-left: 4px solid var(--red); }
+    [data-theme="dark"] .banner-review { background: #2d2000; border-left-color: #f59e0b; }
+    .cost-warning   { background: var(--amber-bg); border: 1px solid var(--amber); }
+    .ttl-warning    { color: var(--amber); }
+
+    /* ── Run history strip ───────────────────────────────────────────── */
+    #rs-run-strip {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      padding: 6px 16px;
+      font-size: 12px; color: var(--text-muted);
+      display: flex; align-items: center; gap: 16px;
+      overflow-x: auto; white-space: nowrap;
+    }
+    #rs-run-strip .run-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    #rs-run-strip .run-chip strong { color: var(--text-secondary); }
+    .source-chip {
+      display: inline-block; padding: 1px 7px; border-radius: 99px;
+      font-size: 11px; font-weight: 500;
+    }
+    .source-chip.ok   { background: var(--green-bg); color: var(--green); }
+    .source-chip.err  { background: var(--red-bg);   color: var(--red);   }
+
+    /* ── Page body layout ────────────────────────────────────────────── */
+    #rs-page {
+      display: flex; min-height: calc(100vh - var(--topbar-h));
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────────────────── */
+    #rs-sidebar {
+      width: var(--sidebar-w); flex-shrink: 0;
+      padding: 12px 0;
+      border-right: 1px solid var(--border);
+      background: var(--bg-surface);
+      overflow-y: auto;
+    }
+    .sb-section { padding: 8px 12px 4px; }
+    .sb-label {
+      font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-faint);
+      margin-bottom: 4px;
+    }
+    .sb-divider { height: 1px; background: var(--border); margin: 8px 0; }
+    .sb-filter {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 12px; cursor: pointer; border-radius: 5px;
+      color: var(--text-secondary); text-decoration: none;
+      font-size: 13px;
+    }
+    .sb-filter:hover { background: var(--bg-elevated); color: var(--text-primary); }
+    .sb-filter.active {
+      background: var(--accent-bg); color: var(--accent); font-weight: 500;
+    }
+    .sb-count {
+      font-size: 11px; padding: 1px 6px; border-radius: 99px;
+      background: var(--bg-elevated); color: var(--text-muted);
+    }
+    .sb-filter.active .sb-count { background: var(--accent); color: #fff; }
+
+    /* Watchlist within sidebar */
+    .sb-watchlist-input { padding: 0 12px 8px; }
+    .watchlist-star { color: var(--amber); }
+
+    /* ── Main content ────────────────────────────────────────────────── */
+    #rs-main {
+      flex: 1; min-width: 0;
+      padding: 0;
+      overflow-x: auto;
+    }
+    #rs-toolbar {
+      padding: 10px 16px; font-size: 13px;
+      color: var(--text-muted); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+    }
+    #rs-toolbar strong { color: var(--text-primary); }
+
+    /* ── Threshold slider (kept in sidebar) ──────────────────────────── */
+    .threshold-section { padding: 8px 12px; }
+
+    /* ── Table ───────────────────────────────────────────────────────── */
+    #jobs-table {
+      width: 100%; border-collapse: collapse; font-size: 13px;
+    }
+    #jobs-table thead th {
+      position: sticky; top: var(--topbar-h);
+      background: var(--bg-surface); z-index: 10;
+      padding: 8px 10px; text-align: left;
+      border-bottom: 2px solid var(--border-strong);
+      color: var(--text-muted); font-size: 11px; font-weight: 600;
+      letter-spacing: 0.05em; text-transform: uppercase;
+      white-space: nowrap;
+    }
+    #jobs-table thead th a {
+      color: var(--text-muted); text-decoration: none;
+    }
+    #jobs-table thead th a:hover { color: var(--text-primary); }
+    #jobs-table thead th.sort-active a { color: var(--accent); }
+    #jobs-table tbody tr.job-row {
+      border-bottom: 1px solid var(--border);
+      cursor: pointer; transition: background 0.1s;
+    }
+    #jobs-table tbody tr.job-row:hover { background: var(--bg-elevated); }
+    #jobs-table tbody tr.job-row.expanded { background: var(--bg-elevated); }
+    #jobs-table tbody td { padding: 9px 10px; vertical-align: middle; }
+
+    /* ── Match badge ─────────────────────────────────────────────────── */
+    .match-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 99px;
+      font-weight: 700; font-size: 13px; min-width: 44px; text-align: center;
+    }
+    .match-badge.high { background: var(--green-bg); color: var(--green); }
+    .match-badge.mid  { background: var(--amber-bg); color: var(--amber); }
+
+    /* ── Work model pill ─────────────────────────────────────────────── */
+    .wm-pill {
+      display: inline-block; padding: 1px 8px; border-radius: 99px;
+      font-size: 11px; font-weight: 500;
+    }
+    .wm-remote  { background: var(--green-bg); color: var(--green); }
+    .wm-hybrid  { background: var(--blue-bg);  color: var(--blue);  }
+    .wm-onsite  { background: var(--bg-elevated); color: var(--text-muted); }
+    .wm-unknown { color: var(--text-ghost); font-style: italic; }
+
+    /* ── Stage pill ──────────────────────────────────────────────────── */
+    .stage-pill {
+      display: inline-block; padding: 1px 8px; border-radius: 99px;
+      font-size: 11px; font-weight: 500;
+      background: #ede9fe; color: #5b21b6;
+    }
+    [data-theme="dark"] .stage-pill { background: #2e1f6e; color: #c4b5fd; }
+
+    /* ── Compensation ────────────────────────────────────────────────── */
+    .comp-visible { color: var(--text-primary); font-weight: 500; }
+    .comp-hidden  { color: var(--text-faint); }
+
+    /* ── Status select ───────────────────────────────────────────────── */
+    .status-select {
+      font-size: 12px; padding: 2px 6px; border-radius: 5px;
+      border: 1px solid var(--border); background: var(--bg-surface);
+      color: var(--text-primary); cursor: pointer; transition: border-color 0.15s;
+    }
+    .status-select:focus { outline: none; border-color: var(--accent); }
+    .status-select.success { border-color: var(--green) !important; }
+    .status-select.error   { border-color: var(--red)   !important; }
+
+    /* ── Expand row ──────────────────────────────────────────────────── */
+    .expand-row { display: none; }
+    .expand-row.open { display: table-row; }
+    .expand-panel {
+      padding: 16px 20px 20px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border-strong);
+    }
+    .expand-grid {
+      display: grid;
+      grid-template-columns: 80px 1fr 1fr;
+      gap: 20px;
+    }
+
+    /* ── Score ring ──────────────────────────────────────────────────── */
+    .score-ring-wrap { text-align: center; }
+    .score-ring-label { font-size: 18px; font-weight: 700; margin-top: 4px; }
+    .score-ring-sub   { font-size: 11px; color: var(--text-faint); }
+    .ring-track { stroke: var(--border-strong); }
+    .ring-fill  { transition: stroke-dashoffset 0.4s ease; }
+    .ring-fill.high { stroke: var(--green); }
+    .ring-fill.mid  { stroke: var(--amber); }
+
+    /* ── Score bars ──────────────────────────────────────────────────── */
+    .score-bars { display: flex; flex-direction: column; gap: 7px; }
+    .score-bar-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    .score-bar-label { width: 72px; color: var(--text-muted); flex-shrink: 0; }
+    .score-bar-track {
+      flex: 1; height: 6px; border-radius: 99px;
+      background: var(--border); overflow: hidden;
+    }
+    .score-bar-fill { height: 100%; border-radius: 99px; transition: width 0.4s ease; }
+    .score-bar-fill.high { background: var(--green); }
+    .score-bar-fill.mid  { background: var(--amber); }
+    .score-bar-pts { width: 36px; text-align: right; color: var(--text-muted); font-size: 11px; }
+
+    /* ── Expand details ──────────────────────────────────────────────── */
+    .expand-detail { display: flex; flex-direction: column; gap: 12px; }
+    .detail-label {
+      font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-faint); margin-bottom: 3px;
+    }
+    .detail-text { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+    .req-tag {
+      display: inline-block; padding: 2px 8px; margin: 2px;
+      border-radius: 99px; font-size: 11px;
+      background: var(--bg-elevated); color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .flag-tag {
+      display: inline-block; padding: 2px 8px; margin: 2px;
+      border-radius: 99px; font-size: 11px;
+      background: var(--red-bg); color: var(--red);
+      border: 1px solid var(--red-bg);
+    }
+    .domain-tag {
+      display: inline-block; padding: 2px 8px; margin: 2px;
+      border-radius: 99px; font-size: 11px;
+      background: var(--accent-bg); color: var(--accent);
+    }
+
+    /* ── Alignment section ───────────────────────────────────────────── */
+    .alignment-section { font-size: 12px; }
+    .alignment-match { color: var(--green); font-weight: 600; margin-bottom: 2px; }
+    .alignment-reframe { color: var(--amber); font-weight: 600; margin-bottom: 2px; }
+    .alignment-gap { color: var(--red); font-weight: 600; margin-bottom: 2px; }
+    .alignment-overall { color: var(--text-secondary); font-style: italic; margin-top: 8px; }
+    .alignment-list { margin: 0; padding-left: 16px; color: var(--text-secondary); line-height: 1.6; }
+    .alignment-btn {
+      font-size: 11px; padding: 2px 8px; border-radius: 5px;
+      border: 1px solid var(--border); background: var(--bg-surface);
+      color: var(--accent); cursor: pointer;
+    }
+    .alignment-btn:hover { border-color: var(--accent); }
+    .alignment-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Tailor badge ────────────────────────────────────────────────── */
+    .badge-fresh  { background-color: var(--green); }
+    .badge-cached { background-color: var(--text-muted); }
+
+    /* ── Action buttons in rows ──────────────────────────────────────── */
+    .jd-dl-btn {
+      font-size: 11px; padding: 2px 7px; border-radius: 5px;
+      border: 1px solid var(--border); background: var(--bg-surface);
+      color: var(--text-muted); text-decoration: none;
+    }
+    .jd-dl-btn:hover { border-color: var(--border-strong); color: var(--text-primary); }
+    .ext-link {
+      color: var(--text-faint); text-decoration: none; font-size: 14px;
+    }
+    .ext-link:hover { color: var(--accent); }
+    .tailor-btn-sm {
+      font-size: 11px; padding: 2px 8px; border-radius: 5px;
+      border: 1px solid var(--accent); color: var(--accent);
+      background: none; cursor: pointer;
+    }
+    .tailor-btn-sm:hover { background: var(--accent-bg); }
+    .apply-btn {
+      font-size: 11px; padding: 3px 10px; border-radius: 5px;
+      background: var(--accent); color: #fff; text-decoration: none;
+      border: none;
+    }
+    .apply-btn:hover { opacity: 0.85; color: #fff; }
+
+    /* ── No jobs message ─────────────────────────────────────────────── */
+    #no-jobs-row td { color: var(--text-muted); text-align: center; padding: 40px; }
+
+    /* ── Footer counts ───────────────────────────────────────────────── */
+    #rs-footer {
+      padding: 10px 16px; font-size: 12px; color: var(--text-faint);
+      border-top: 1px solid var(--border); display: flex; gap: 16px;
+    }
+
+    /* ── Tailor modal overrides ──────────────────────────────────────── */
+    .modal-content {
+      background: var(--bg-surface); color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+    .modal-header { border-bottom-color: var(--border); }
+    .modal-footer { border-top-color: var(--border); }
+
+    /* ── Responsive ──────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      #rs-sidebar { display: none; }
+      #rs-topbar .meta { display: none; }
+    }
   </style>
 </head>
-<body class="p-3">
-  <div id="rs-banner" role="region" aria-label="Pipeline review"></div>
-  <div id="rs-cost-warning" hidden></div>
-  <main id="main-content">
-    {% block content %}{% endblock %}
-  </main>
+<body>
+  <!-- Topbar -->
+  <header id="rs-topbar">
+    <a href="/" class="logo">⬡ <span>Role Scout</span></a>
+    <div class="spacer"></div>
+    <div class="meta" id="rs-total-meta"></div>
+    <button id="theme-toggle" title="Toggle theme" aria-label="Toggle dark/light mode">☀</button>
+  </header>
+
+  <!-- Banner (HiTL + cost warning) -->
+  <div id="rs-banner-wrap">
+    <div id="rs-banner" role="region" aria-label="Pipeline review"></div>
+    <div id="rs-cost-warning" hidden></div>
+  </div>
+
+  <!-- Page body -->
+  <div id="rs-page">
+    {% block sidebar %}{% endblock %}
+
+    <main id="rs-main">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <!-- Tailor modal -->
+  <div class="modal fade" id="tailorModal" tabindex="-1" aria-labelledby="tailorModalLabel" aria-modal="true" role="dialog">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="tailorModalLabel">Tailored Resume</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="tailor-modal-loading" class="text-center py-4">
+            <div class="spinner-border" role="status"></div>
+            <p class="mt-2" style="color:var(--text-muted)">Claude is tailoring — usually ~15s</p>
+          </div>
+          <div id="tailor-modal-error" class="alert alert-danger" hidden></div>
+          <div id="tailor-modal-result" hidden>
+            <div class="d-flex align-items-center mb-3">
+              <span id="tailor-modal-badge" class="badge me-2"></span>
+              <span id="tailor-modal-job-title" style="color:var(--text-muted);font-size:13px"></span>
+            </div>
+            <h6>Summary <button class="btn btn-sm btn-link p-0 ms-1" id="tailor-copy-summary">Copy</button></h6>
+            <p id="tailor-modal-summary" class="small border rounded p-2" style="background:var(--bg-elevated)"></p>
+            <h6>Resume Bullets <button class="btn btn-sm btn-link p-0 ms-1" id="tailor-copy-bullets">Copy all</button></h6>
+            <ul id="tailor-modal-bullets" class="small"></ul>
+            <h6>Keywords</h6>
+            <p id="tailor-modal-keywords" style="font-size:12px;color:var(--text-muted)"></p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="tailor-refresh-btn">↻ Refresh</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="{{ url_for('static', filename='js/banner.js') }}"></script>
   <script src="{{ url_for('static', filename='js/threshold.js') }}"></script>
   <script src="{{ url_for('static', filename='js/watchlist.js') }}"></script>
   <script src="{{ url_for('static', filename='js/tailor.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/status.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/alignment.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

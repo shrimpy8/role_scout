@@ -1,164 +1,438 @@
 {% extends "base.html" %}
 {% block title %}Role Scout Dashboard{% endblock %}
-{% block content %}
-<div class="row">
-  <!-- Sidebar -->
-  <div class="col-md-3">
-    <div class="card mb-3">
-      <div class="card-body">
-        <h2 class="card-title h6">Filter</h2>
-        <label for="threshold-slider" class="form-label">
-          Match threshold: <span id="threshold-val">{{ threshold }}</span>
-        </label>
-        <input type="range" id="threshold-slider" class="form-range"
-               min="0" max="100" value="{{ threshold }}"
-               aria-valuenow="{{ threshold }}" aria-valuemin="0" aria-valuemax="100">
-        <div class="text-muted small mt-1" id="threshold-count"></div>
-        <div class="text-muted small">
-          <i class="bi bi-info-circle"></i>
-          Filter only — never re-scores
-        </div>
-      </div>
-    </div>
 
-    <!-- Watchlist panel -->
-    <div class="card mb-3">
-      <div class="card-body">
-        <h2 class="card-title h6">Watchlist</h2>
-        <div id="watchlist-list">
-          <div class="text-muted small">No watchlist companies yet. Add one to highlight their jobs with ★.</div>
-        </div>
-        <div class="mt-2">
-          <label for="watchlist-input" class="visually-hidden">Company name</label>
-          <div class="input-group input-group-sm">
-            <input type="text" id="watchlist-input" class="form-control"
-                   placeholder="Add company…" maxlength="100" aria-label="Company name">
-            <button id="watchlist-add-btn" class="btn btn-outline-secondary" type="button">Add</button>
-          </div>
-          <div id="watchlist-error" class="text-danger small mt-1" hidden></div>
-        </div>
-      </div>
+{% block sidebar %}
+<nav id="rs-sidebar" aria-label="Filters">
+
+  <!-- Status filters -->
+  <div class="sb-section">
+    <div class="sb-label">Status</div>
+  </div>
+  {% set status_filters = [
+    ('new',      'New',        total_counts.get('new', 0)),
+    ('reviewed', 'Reviewed',   total_counts.get('reviewed', 0)),
+    ('applied',  'Applied',    total_counts.get('applied', 0)),
+    ('rejected', 'Rejected',   total_counts.get('rejected', 0)),
+    ('all',      'All Active', total_counts.get('all', 0)),
+    ('history',  'History',    total_counts.get('history', 0)),
+  ] %}
+  {% for key, label, count in status_filters %}
+  <a href="/?status={{ key }}{% if active_source %}&source={{ active_source }}{% endif %}&sort={{ active_sort }}&dir={{ active_dir }}"
+     class="sb-filter {% if active_status == key %}active{% endif %}">
+    {{ label }}
+    <span class="sb-count">{{ count }}</span>
+  </a>
+  {% endfor %}
+
+  <div class="sb-divider"></div>
+
+  <!-- Source filters -->
+  <div class="sb-section">
+    <div class="sb-label">Source</div>
+  </div>
+  {% set source_filters = [
+    (none,         'All Sources',  total_counts.get('new', 0) + total_counts.get('reviewed', 0) + total_counts.get('applied', 0) + total_counts.get('rejected', 0)),
+    ('linkedin',   'LinkedIn',     source_counts.get('linkedin', 0)),
+    ('google_jobs','Google Jobs',  source_counts.get('google_jobs', 0)),
+    ('trueup',     'TrueUp',       source_counts.get('trueup', 0)),
+  ] %}
+  {% for key, label, count in source_filters %}
+  <a href="/?status={{ active_status }}&sort={{ active_sort }}&dir={{ active_dir }}{% if key %}&source={{ key }}{% endif %}"
+     class="sb-filter {% if active_source == key %}active{% endif %}">
+    {{ label }}
+    <span class="sb-count">{{ count }}</span>
+  </a>
+  {% endfor %}
+
+  <div class="sb-divider"></div>
+
+  <!-- Threshold slider -->
+  <div class="threshold-section">
+    <div class="sb-label">Min Match</div>
+    <div style="padding: 4px 0; font-size:12px; color:var(--text-muted)">
+      <span id="threshold-val">{{ threshold }}</span>%
     </div>
+    <input type="range" id="threshold-slider" style="width:100%"
+           min="0" max="100" value="{{ threshold }}"
+           aria-valuenow="{{ threshold }}" aria-valuemin="0" aria-valuemax="100">
+    <div style="font-size:11px;color:var(--text-faint);margin-top:2px" id="threshold-count"></div>
   </div>
 
-  <!-- Main content -->
-  <div class="col-md-9">
-    <h1>Role Scout</h1>
-    <p class="text-muted small" id="run-info"></p>
+  <div class="sb-divider"></div>
 
-    <div class="table-responsive">
-    <table class="table table-sm table-hover" id="jobs-table">
-      <thead>
-        <tr>
-          <th>Title</th>
-          <th>Company</th>
-          <th>Location</th>
-          <th>Score</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% if not jobs %}
-        <tr id="no-jobs-msg">
-          <td colspan="6" class="text-center text-muted py-4">No jobs yet — run the pipeline to discover matches.</td>
-        </tr>
+  <!-- Watchlist -->
+  <div class="sb-section">
+    <div class="sb-label">Watchlist</div>
+  </div>
+  <div style="padding: 0 12px 4px">
+    <div id="watchlist-list">
+      <div style="font-size:12px;color:var(--text-faint)">No watchlist companies yet.</div>
+    </div>
+  </div>
+  <div class="sb-watchlist-input">
+    <label for="watchlist-input" class="visually-hidden">Company name</label>
+    <div class="input-group input-group-sm">
+      <input type="text" id="watchlist-input" class="form-control" style="font-size:12px"
+             placeholder="Add company…" maxlength="100" aria-label="Company name">
+      <button id="watchlist-add-btn" class="btn btn-outline-secondary btn-sm" type="button">+</button>
+    </div>
+    <div id="watchlist-error" style="font-size:11px;color:var(--red);margin-top:3px" hidden></div>
+  </div>
+
+</nav>
+{% endblock %}
+
+{% block content %}
+
+<!-- Run history strip -->
+{% if run_history %}
+<div id="rs-run-strip">
+  {% set r = run_history[0] %}
+  <div class="run-chip">Last run: <strong>{{ r.started_at_display }}</strong></div>
+  <div class="run-chip">Fetched: <strong>{{ r.total_fetched }}</strong></div>
+  <div class="run-chip">New: <strong>{{ r.total_new }}</strong></div>
+  <div class="run-chip">Qualified: <strong>{{ r.total_qualified }}</strong></div>
+  <div class="run-chip" style="gap:4px">
+    {% if r.source_linkedin %}
+      <span class="source-chip ok">LinkedIn {{ r.source_linkedin }}</span>
+    {% endif %}
+    {% if r.source_google_jobs %}
+      <span class="source-chip ok">Google {{ r.source_google_jobs }}</span>
+    {% endif %}
+    {% if r.source_trueup %}
+      <span class="source-chip ok">TrueUp {{ r.source_trueup }}</span>
+    {% endif %}
+    {% for err in r.errors %}
+      <span class="source-chip err">⚠ {{ err | truncate(30) }}</span>
+    {% endfor %}
+  </div>
+  {% if r.watchlist_hits %}
+    <div class="run-chip">
+      Watchlist:
+      {% for co, cnt in r.watchlist_hits.items() %}
+        <strong>{{ co }} ({{ cnt }})</strong>{% if not loop.last %}, {% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% else %}
+<div id="rs-run-strip" style="color:var(--text-faint)">
+  No runs yet — run the pipeline to discover matches.
+</div>
+{% endif %}
+
+<!-- Toolbar -->
+<div id="rs-toolbar">
+  <strong>{{ jobs | length }} job{{ 's' if jobs | length != 1 else '' }}</strong>
+  <span>·</span>
+  <span>{{ active_status }}</span>
+  {% if active_source %}
+    <span>·</span><span>{{ active_source | replace('_', ' ') }}</span>
+  {% endif %}
+</div>
+
+<!-- Jobs table -->
+<div style="overflow-x:auto">
+<table id="jobs-table" aria-label="Qualified jobs">
+  <thead>
+    <tr>
+      {% macro sort_link(col, label) %}
+        {% set is_active = active_sort == col %}
+        {% set next_dir = 'asc' if (is_active and active_dir == 'desc') else 'desc' %}
+        <th class="{{ 'sort-active' if is_active else '' }}">
+          <a href="/?status={{ active_status }}{% if active_source %}&source={{ active_source }}{% endif %}&sort={{ col }}&dir={{ next_dir }}">
+            {{ label }}{% if is_active %} {{ '↑' if active_dir == 'asc' else '↓' }}{% endif %}
+          </a>
+        </th>
+      {% endmacro %}
+      {{ sort_link('match_pct', 'Match') }}
+      {{ sort_link('company', 'Company') }}
+      {{ sort_link('title', 'Title') }}
+      {{ sort_link('city', 'Location') }}
+      {{ sort_link('work_model', 'Model') }}
+      {{ sort_link('company_stage', 'Stage') }}
+      <th>Comp</th>
+      {{ sort_link('status', 'Status') }}
+      <th>JD</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% if not jobs %}
+    <tr id="no-jobs-row">
+      <td colspan="11">No jobs found — run the pipeline or adjust filters.</td>
+    </tr>
+    {% endif %}
+    {% for job in jobs %}
+    <!-- Job row -->
+    <tr class="job-row {% if job.is_watchlist %}watchlist-job{% endif %}"
+        data-hash-id="{{ job.hash_id }}"
+        data-match-pct="{{ job.match_pct }}"
+        data-company="{{ job.company | lower }}"
+        onclick="rsToggleExpand('{{ job.hash_id }}', event)"
+        role="button" tabindex="0"
+        aria-expanded="false"
+        onkeydown="if(event.key==='Enter'){rsToggleExpand('{{ job.hash_id }}', event)}">
+      <td>
+        <span class="match-badge {{ 'high' if job.match_pct >= 90 else 'mid' }}">
+          {{ job.match_pct }}%
+        </span>
+      </td>
+      <td>
+        <span class="watchlist-star" data-company="{{ job.company | lower }}"
+              {% if job.company | lower not in watchlist %}hidden{% endif %}>★</span>
+        <strong>{{ job.company }}</strong>
+      </td>
+      <td>
+        <a href="{{ job.url }}" target="_blank" rel="noopener noreferrer"
+           onclick="event.stopPropagation()"
+           style="color:var(--text-secondary);text-decoration:none">
+          {{ job.title }}
+        </a>
+      </td>
+      <td>
+        <div>{{ job.city or job.location }}</div>
+        {% if job.country %}
+          <div style="font-size:11px;color:var(--text-faint)">{{ job.country }}</div>
         {% endif %}
-        {% for job in jobs %}
-        <tr data-match-pct="{{ job.match_pct }}" data-hash-id="{{ job.hash_id }}"
-            data-company="{{ job.company | lower }}">
-          <td>{{ job.title }}</td>
-          <td>
-            {{ job.company }}
-            <span class="watchlist-star" data-company="{{ job.company | lower }}" hidden>★</span>
-          </td>
-          <td>{{ job.location }}</td>
-          <td>{{ job.match_pct }}</td>
-          <td>{{ job.status }}</td>
-          <td>
-            <button class="btn btn-sm btn-outline-primary tailor-btn"
-                    data-hash-id="{{ job.hash_id }}"
-                    aria-label="Tailor resume for {{ job.title }} at {{ job.company }}">
-              Tailor
-            </button>
-          </td>
-        </tr>
-        <tr class="tailor-panel-row d-none" data-for="{{ job.hash_id }}">
-          <td colspan="6">
-            <div class="tailor-panel p-3" id="tailor-{{ job.hash_id }}">
-              <div class="tailor-loading text-muted small" hidden>
-                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                Claude is tailoring — usually ~8s
+      </td>
+      <td>
+        {% if job.work_model == 'remote' %}
+          <span class="wm-pill wm-remote">Remote</span>
+        {% elif job.work_model == 'hybrid' %}
+          <span class="wm-pill wm-hybrid">Hybrid</span>
+        {% elif job.work_model == 'onsite' %}
+          <span class="wm-pill wm-onsite">Onsite</span>
+        {% else %}
+          <span class="wm-unknown">—</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if job.company_stage %}
+          <span class="stage-pill">{{ job.company_stage }}</span>
+        {% else %}
+          <span style="color:var(--text-ghost)">—</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if job.comp_range %}
+          <span class="{{ 'comp-visible' if job.salary_visible else 'comp-hidden' }}">
+            {{ job.comp_range }}
+          </span>
+        {% else %}
+          <span style="color:var(--text-ghost)">·</span>
+        {% endif %}
+      </td>
+      <td onclick="event.stopPropagation()">
+        <select class="status-select"
+                data-hash-id="{{ job.hash_id }}"
+                data-previous="{{ job.status }}"
+                aria-label="Job status for {{ job.title }}">
+          <option value="new"      {% if job.status == 'new'      %}selected{% endif %}>New</option>
+          <option value="reviewed" {% if job.status == 'reviewed' %}selected{% endif %}>Reviewed</option>
+          <option value="applied"  {% if job.status == 'applied'  %}selected{% endif %}>Applied</option>
+          <option value="rejected" {% if job.status == 'rejected' %}selected{% endif %}>Rejected</option>
+        </select>
+      </td>
+      <td onclick="event.stopPropagation()">
+        {% if job.jd_filename %}
+          <a href="/jds/{{ job.jd_filename }}" download class="jd-dl-btn" title="Download JD">↓ JD</a>
+        {% else %}
+          <span style="color:var(--text-ghost)">—</span>
+        {% endif %}
+      </td>
+      <td onclick="event.stopPropagation()">
+        <a href="{{ job.url }}" target="_blank" rel="noopener noreferrer"
+           class="ext-link" title="Open job listing" aria-label="Open {{ job.title }} listing">↗</a>
+      </td>
+    </tr>
+
+    <!-- Expand row -->
+    <tr class="expand-row" id="expand-{{ job.hash_id }}">
+      <td colspan="11" style="padding:0">
+        <div class="expand-panel">
+          <div class="expand-grid">
+
+            <!-- Score ring -->
+            <div class="score-ring-wrap">
+              <svg width="64" height="64" viewBox="0 0 64 64" style="transform:rotate(-90deg)">
+                <circle class="ring-track" cx="32" cy="32" r="26" fill="none" stroke-width="6"/>
+                <circle class="ring-fill {{ 'high' if job.match_pct >= 90 else 'mid' }}"
+                        id="ring-{{ job.hash_id }}"
+                        cx="32" cy="32" r="26" fill="none" stroke-width="6"
+                        stroke-dasharray="{{ (2 * 3.14159 * 26) | round(2) }}"
+                        stroke-dashoffset="{{ (2 * 3.14159 * 26) | round(2) }}"
+                        data-pct="{{ job.match_pct }}"/>
+              </svg>
+              <div class="score-ring-label">{{ job.match_pct }}%</div>
+              <div class="score-ring-sub">match</div>
+            </div>
+
+            <!-- Score bars -->
+            <div class="score-bars">
+              {% set bars = [
+                ('Seniority', job.seniority_score, 30),
+                ('Domain',    job.domain_score,    25),
+                ('Location',  job.location_score,  20),
+                ('Stage',     job.stage_score,     15),
+                ('Comp',      job.comp_score,       10),
+              ] %}
+              {% for label, score, max_score in bars %}
+              {% set pct = ((score or 0) / max_score * 100) | round | int %}
+              <div class="score-bar-row">
+                <div class="score-bar-label">{{ label }}</div>
+                <div class="score-bar-track">
+                  <div class="score-bar-fill {{ 'high' if pct >= 70 else 'mid' }}"
+                       style="width:0%"
+                       data-pct="{{ pct }}"></div>
+                </div>
+                <div class="score-bar-pts">{{ score or 0 }}/{{ max_score }}</div>
               </div>
-              <div class="tailor-result" hidden>
-                <div class="mb-2">
-                  <strong>Summary</strong>
-                  <span class="badge ms-1 tailor-badge"></span>
-                  <button class="btn btn-sm btn-link copy-summary" title="Copy summary">Copy</button>
+              {% endfor %}
+            </div>
+
+            <!-- Details -->
+            <div class="expand-detail">
+
+              <!-- Posted / source / apply -->
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div style="font-size:11px;color:var(--text-faint)">
+                  {% if job.posted_date %}{{ job.posted_date }} · {% endif %}{{ job.source | replace('_', ' ') | title }}
                 </div>
-                <p class="tailor-summary-text small"></p>
-                <div class="mb-2">
-                  <strong>Bullets</strong>
-                  <button class="btn btn-sm btn-link copy-bullets" title="Copy all bullets">Copy all</button>
+                {% set apply_target = job.apply_url or job.url %}
+                <a href="{{ apply_target }}" target="_blank" rel="noopener noreferrer"
+                   class="apply-btn">Apply ↗</a>
+              </div>
+
+              <!-- Domain tags -->
+              {% if job.domain_tags %}
+              <div>
+                <div class="detail-label">Domain</div>
+                {% for tag in job.domain_tags %}
+                  <span class="domain-tag">{{ tag }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+
+              <!-- Reasoning -->
+              {% if job.reasoning %}
+              <div>
+                <div class="detail-label">Reasoning</div>
+                <div class="detail-text">{{ job.reasoning }}</div>
+              </div>
+              {% endif %}
+
+              <!-- Key requirements -->
+              {% if job.key_requirements %}
+              <div>
+                <div class="detail-label">Key Requirements</div>
+                {% for req in job.key_requirements %}
+                  <span class="req-tag">{{ req }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+
+              <!-- Red flags -->
+              {% if job.red_flags %}
+              <div>
+                <div class="detail-label">Red Flags</div>
+                {% for flag in job.red_flags %}
+                  <span class="flag-tag">{{ flag }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+
+              <!-- JD Alignment -->
+              <div>
+                <div class="detail-label" style="display:inline">
+                  JD Alignment
                 </div>
-                <ul class="tailor-bullets-list small"></ul>
-                <div class="mb-1"><strong>Keywords</strong></div>
-                <p class="tailor-keywords small text-muted"></p>
-                <button class="btn btn-sm btn-outline-secondary refresh-tailor" data-hash-id="{{ job.hash_id }}">
-                  ↻ Refresh
+                {% if job.description %}
+                  <button class="alignment-btn ms-2"
+                          data-hash-id="{{ job.hash_id }}"
+                          aria-label="Run JD alignment analysis">
+                    {{ '↻ Re-run' if job.jd_alignment_parsed else '▶ Run' }}
+                  </button>
+                {% endif %}
+                <div id="alignment-result-{{ job.hash_id }}" class="alignment-section mt-2">
+                  {% if job.jd_alignment_parsed %}
+                    {% set al = job.jd_alignment_parsed %}
+                    {% if al.strong_matches %}
+                      <div class="alignment-match">Strong Matches</div>
+                      <ul class="alignment-list">
+                        {% for item in al.strong_matches %}<li>{{ item }}</li>{% endfor %}
+                      </ul>
+                    {% endif %}
+                    {% if al.reframing_opportunities %}
+                      <div class="alignment-reframe mt-2">Reframing Opportunities</div>
+                      <ul class="alignment-list">
+                        {% for item in al.reframing_opportunities %}<li>{{ item }}</li>{% endfor %}
+                      </ul>
+                    {% endif %}
+                    {% if al.genuine_gaps %}
+                      <div class="alignment-gap mt-2">Gaps</div>
+                      <ul class="alignment-list">
+                        {% for item in al.genuine_gaps %}<li>{{ item }}</li>{% endfor %}
+                      </ul>
+                    {% endif %}
+                    {% if al.overall_take %}
+                      <div class="alignment-overall mt-2">{{ al.overall_take }}</div>
+                    {% endif %}
+                  {% elif job.description %}
+                    <div style="font-size:12px;color:var(--text-faint)">
+                      Not yet run — click ▶ Run to analyze alignment against your resume.
+                    </div>
+                  {% else %}
+                    <div style="font-size:12px;color:var(--text-faint)">No job description available.</div>
+                  {% endif %}
+                </div>
+              </div>
+
+              <!-- Tailor -->
+              <div>
+                <button class="tailor-btn tailor-btn-sm"
+                        data-hash-id="{{ job.hash_id }}"
+                        aria-label="Tailor resume for {{ job.title }} at {{ job.company }}">
+                  ✦ Tailor Resume
                 </button>
               </div>
-              <div class="tailor-error text-danger small" hidden></div>
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    </div>
-    <p id="no-match-msg" class="text-muted" hidden>No jobs match this threshold. Drag left to see more.</p>
-  </div>
+
+            </div><!-- /expand-detail -->
+          </div><!-- /expand-grid -->
+        </div><!-- /expand-panel -->
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 </div>
-<!-- Tailor modal -->
-<div class="modal fade" id="tailorModal" tabindex="-1" aria-labelledby="tailorModalLabel" aria-modal="true" role="dialog">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="tailorModalLabel">Tailored Resume</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <div id="tailor-modal-loading" class="text-center py-4">
-          <div class="spinner-border" role="status"></div>
-          <p class="mt-2 text-muted">Claude is tailoring — usually ~15s</p>
-        </div>
-        <div id="tailor-modal-error" class="alert alert-danger" hidden></div>
-        <div id="tailor-modal-result" hidden>
-          <div class="d-flex align-items-center mb-3">
-            <span id="tailor-modal-badge" class="badge me-2"></span>
-            <span id="tailor-modal-job-title" class="text-muted small"></span>
-          </div>
-          <h6>Summary <button class="btn btn-sm btn-link p-0 ms-1" id="tailor-copy-summary">Copy</button></h6>
-          <p id="tailor-modal-summary" class="small border rounded p-2 bg-light"></p>
-          <h6>Resume Bullets <button class="btn btn-sm btn-link p-0 ms-1" id="tailor-copy-bullets">Copy all</button></h6>
-          <ul id="tailor-modal-bullets" class="small"></ul>
-          <h6>Keywords</h6>
-          <p id="tailor-modal-keywords" class="small text-muted"></p>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary btn-sm" id="tailor-refresh-btn">↻ Refresh</button>
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
-      </div>
-    </div>
-  </div>
+
+<p id="no-match-msg" style="color:var(--text-muted);padding:16px" hidden>
+  No jobs match this threshold. Drag left to see more.
+</p>
+
+<!-- Footer counts -->
+<div id="rs-footer">
+  <span>{{ total_counts.get('new', 0) }} new</span>
+  <span>{{ total_counts.get('reviewed', 0) }} reviewed</span>
+  <span>{{ total_counts.get('applied', 0) }} applied</span>
+  <span>{{ total_counts.get('rejected', 0) }} rejected</span>
+  <span style="margin-left:auto">
+    <a href="/debug/basic" style="color:var(--text-faint);font-size:11px">Basic view</a>
+    ·
+    <a href="/debug/runs" style="color:var(--text-faint);font-size:11px">Run history</a>
+  </span>
 </div>
+
 {% endblock %}
+
 {% block scripts %}
 <script>
 window.RS_CONFIG = {
   threshold: {{ threshold }},
-  csrfToken: document.querySelector('meta[name="csrf-token"]').content
+  csrfToken: document.querySelector('meta[name="csrf-token"]').content,
+  totalJobs: {{ total_counts.get('new', 0) + total_counts.get('reviewed', 0) + total_counts.get('applied', 0) + total_counts.get('rejected', 0) }},
+  watchlist: {{ watchlist_initial | tojson }},
 };
 </script>
 {% endblock %}

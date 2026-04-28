@@ -61,12 +61,22 @@ Role Scout is a single self-contained repository. Phase 1 (the linear fetch-norm
 ## Features
 
 ### Dashboard
-- Qualified jobs table, sortable by score
-- Threshold slider — **display filter only**, never re-scores
-- Watchlist panel: add companies to highlight their jobs with a star marker
+- Qualified jobs table with 11 columns: title, company, location, work model, stage, comp, score, source, status, external link, tailor
+- Sortable columns — click any header to toggle ascending/descending; active sort and direction preserved in URL
+- Sidebar status filters: New / Reviewed / Applied / Rejected / All Active / History with live per-status counts
+- Sidebar source filters: All / LinkedIn / Google Jobs / TrueUp
+- Threshold slider — **display filter only**, never re-scores; hides rows below the chosen match %
+- Expandable detail rows with animated SVG score ring, per-dimension score bars (Seniority / Domain / Location / Stage / Comp), and Claude's scoring reasoning
+- Inline status updates — dropdown per row; changes persist immediately to the DB without a page reload
+- JD alignment panel: one-click Claude analysis of strong matches, reframing opportunities, and genuine gaps vs. your resume; cached in the DB per job
+- Work model pills (Remote / Hybrid / On-site) and stage pills (Seed / Series A–D / Public / Acquired)
+- Watchlist panel: add companies to highlight matching rows with a ★ star (case-insensitive, persists across runs)
 - HiTL review banner with TTL countdown and +2h extend button
 - Per-run cost warning when a run exceeds $2
-- Tailor panel: per-job expand with Claude-generated summary, bullets, and keywords
+- Run history strip: last 5 pipeline runs with source-health chips and job counts (fetched / new / qualified)
+- Tailor modal: Claude-generated summary, bullets, and keywords per job; cached by `(hash_id, resume_sha256, prompt_version)` — ↻ force-refresh available
+- Dark/light theme toggle — preference persists across sessions via localStorage
+- Fallback dashboard at `/debug/basic` (the original simple view, always available)
 
 ### Resume tailoring
 - One-shot Claude call per job (not a multi-turn planner)
@@ -287,8 +297,8 @@ role_scout/
 │   ├── dashboard/          # Flask app (routes, templates, static JS)
 │   │   ├── __init__.py     # create_app(), security headers
 │   │   ├── routes.py       # API + page routes
-│   │   ├── templates/      # base.html, index.html, debug_runs.html
-│   │   └── static/js/      # banner.js, threshold.js, watchlist.js
+│   │   ├── templates/      # base.html, index.html, basic.html, debug_runs.html
+│   │   └── static/js/      # banner.js, threshold.js, watchlist.js, main.js, status.js, alignment.js, tailor.js
 │   ├── nodes/              # LangGraph node implementations
 │   │   ├── preflight.py    # Source validation + circuit breaker
 │   │   ├── discovery.py    # Multi-source job fetching
@@ -363,7 +373,7 @@ uv audit
 ## Security notes
 
 - The dashboard binds to `127.0.0.1` — it is not reachable from other machines on your network
-- All write routes (`/api/tailor`, `/api/pipeline/resume`, `/api/pipeline/extend`, `/api/watchlist`) require a CSRF token
+- All write routes (`/api/tailor`, `/api/pipeline/resume`, `/api/pipeline/extend`, `/api/watchlist`, `/api/status/<hash_id>`, `/api/alignment/<hash_id>`) require a CSRF token
 - User-supplied values rendered in the browser are HTML-escaped in templates and in all JavaScript DOM writes
 - Security headers are set on every response: `Content-Security-Policy`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`
 - `.env` is gitignored; never commit API keys
