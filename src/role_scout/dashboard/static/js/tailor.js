@@ -91,6 +91,10 @@
       var panel = panelRow.querySelector('.tailor-panel');
       if (!panel) return;
 
+      // Don't allow toggling closed while a fetch is in progress
+      var isLoading = !panel.querySelector('.tailor-loading').hidden;
+      if (isLoading) return;
+
       var isOpen = !panelRow.classList.contains('d-none');
       if (isOpen) {
         panelRow.classList.add('d-none');
@@ -98,6 +102,8 @@
       }
 
       panelRow.classList.remove('d-none');
+      panelRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
       var resultShown = !panel.querySelector('.tailor-result').hidden;
       var errorShown = !panel.querySelector('.tailor-error').hidden;
       if (!resultShown && !errorShown) {
