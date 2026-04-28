@@ -29,6 +29,8 @@ htmlcov/
 shadow_diffs/
 eval/reports/
 jd_exports/
+jds/
+output/
 
 # IDE
 .idea/
@@ -45,6 +47,10 @@ docs/FEATURE_STATUS.md
 docs/DEVELOPMENT_TODOS.md
 AgenticJobSearchPipeline.md
 
-# Resume / personal candidate data
+# Personal / candidate-specific data (never commit real resume or preferences)
+config/resume_summary.md
+config/candidate_profile.yaml
+config/watchlist.yaml
+# Legacy paths (kept for safety — no longer used)
 prompts/resume_summary.md
 prompts/candidate_profile.json
