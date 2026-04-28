@@ -1,3 +1,7 @@
+> **HISTORICAL DOCUMENT** — This file reflects the design decisions made before implementation. The codebase has since evolved: Phase 1 (auto_jobsearch) is now absorbed into `role_scout/compat/` as a frozen sub-package; there is no sibling repo dependency. Treat this as design context, not current truth.
+
+---
+
 # PRD-CORE: Role Scout Phase 2 — Agentic Job Search Pipeline
 
 | Field | Value |

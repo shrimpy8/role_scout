@@ -20,25 +20,25 @@ Job searching is repetitive and noisy. Role Scout solves three specific problems
 
 ## Architecture
 
-Role Scout has two layers:
+Role Scout is a single self-contained repository. Phase 1 (the linear fetch-normalize-score pipeline, originally `auto_jobsearch`) has been absorbed into `src/role_scout/compat/` as a frozen sub-package. There is no sibling repo required — a single `git clone` + `uv sync` is all you need.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Phase 2 — Agentic Layer (this repo)                        │
-│                                                             │
-│  LangGraph DAG ──► HiTL interrupt ──► Flask dashboard      │
-│       │                                    │                │
-│   Reflection                          MCP server           │
-│   (borderline                     (Claude Code CLI)        │
-│    70-89% re-score)                                         │
-└────────────────────────────┬────────────────────────────────┘
-                             │ imports as editable dep
-┌────────────────────────────▼────────────────────────────────┐
-│  Phase 1 — Linear Pipeline (auto_jobsearch/ — frozen)       │
-│                                                             │
-│  fetch → normalize → dedup → enrich → score → export       │
-│  (LinkedIn · Google Jobs · TrueUp email alerts)            │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  Agentic Layer                                               │
+│                                                              │
+│  LangGraph DAG ──► HiTL interrupt ──► Flask dashboard       │
+│       │                                    │                 │
+│   Reflection                          MCP server            │
+│   (borderline                     (Claude Code CLI)         │
+│    70-89% re-score)                                          │
+└────────────────────────┬─────────────────────────────────────┘
+                         │ imports from
+┌────────────────────────▼─────────────────────────────────────┐
+│  compat/ — Phase 1 linear pipeline (frozen — never modify)   │
+│                                                              │
+│  fetch → normalize → dedup → enrich → score                 │
+│  (LinkedIn · Google Jobs · TrueUp email alerts)             │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ### LangGraph pipeline nodes
@@ -52,7 +52,7 @@ Role Scout has two layers:
 | **scoring** | Sends jobs to Claude in batches; records token usage and cost |
 | **reflection** | Second Claude pass on borderline jobs (70-89%); reviews subscores for internal consistency |
 | **review** | Persists qualified jobs, logs run metrics, then issues interrupt() for HiTL |
-| **export** | Runs after human approval; writes to the export sheet |
+| **export** | Runs after human approval; writes to the export target |
 
 **HiTL flow**: the graph pauses at `review`. The Flask dashboard polls `/api/pipeline/status` every 5 seconds and renders an approval banner. You click Approve or Cancel (or use keyboard shortcuts A / Esc). If no response arrives within 4 hours the run auto-cancels and is logged as `cancel_reason=ttl_expired`.
 
@@ -63,7 +63,7 @@ Role Scout has two layers:
 ### Dashboard
 - Qualified jobs table, sortable by score
 - Threshold slider — **display filter only**, never re-scores
-- Watchlist panel: add companies to highlight their jobs with ★
+- Watchlist panel: add companies to highlight their jobs with a star marker
 - HiTL review banner with TTL countdown and +2h extend button
 - Per-run cost warning when a run exceeds $2
 - Tailor panel: per-job expand with Claude-generated summary, bullets, and keywords
@@ -84,11 +84,8 @@ Nine tools exposed over stdio: `get_pipeline_status`, `run_pipeline`, `get_jobs`
 ### Eval harness
 Three eval tracks run against 50+ ground-truth jobs:
 - **Scorer eval**: Spearman correlation between Claude scores and manual labels
-- **Alignment eval**: LLM-as-judge (cross-model) on Claude's reasoning
+- **Alignment eval**: LLM-as-judge (cross-model) on Claude's scoring reasoning
 - **Tailor eval**: LLM-as-judge + 20% manual spot-check on generated bullets
-
-### Shadow mode
-Runs both the Phase 1 linear pipeline and the Phase 2 agentic graph on the same input, diffs `scored_jobs`, and writes a JSON report to `shadow_diffs/`. Disagreements (delta > 2 pts, or job present in only one path) are flagged. Shadow mode is the default during the first two weeks of deployment.
 
 ---
 
@@ -127,15 +124,16 @@ All runtime configuration lives in `.env`. No values are hardcoded.
 | `ANTHROPIC_API_KEY` | Claude API key (claude-3-5-sonnet or better recommended) |
 | `SERPAPI_KEY` | SerpAPI key for Google Jobs source |
 | `APIFY_TOKEN` | Apify token for LinkedIn scraper actor |
-| `IMAP_EMAIL` | Email address that receives TrueUp job alert digests |
-| `IMAP_APP_PASSWORD` | App-specific password for that IMAP account |
+| `IMAP_USER` | Email address that receives TrueUp job alert digests |
+| `IMAP_PASSWORD` | App-specific password for that IMAP account |
+| `IMAP_FOLDER` | Mailbox folder to read (default: `INBOX`) |
 
 ### Optional
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DB_PATH` | `role_scout.db` | SQLite database file path |
-| `RUN_MODE` | `shadow` | `agentic` · `shadow` · `linear` |
+| `DB_PATH` | `../auto_jobsearch/output/jobsearch.db` | SQLite database file path |
+| `RUN_MODE` | `agentic` | `agentic` — shadow mode is unavailable (see note below) |
 | `SCORE_THRESHOLD` | `85` | Minimum match % to qualify a job |
 | `MAX_COST_USD` | `5.00` | Per-run cost kill-switch (USD) |
 | `LOG_LEVEL` | `INFO` | `DEBUG` · `INFO` · `WARNING` · `ERROR` |
@@ -143,6 +141,13 @@ All runtime configuration lives in `.env`. No values are hardcoded.
 | `LANGSMITH_API_KEY` | — | Required when `LANGSMITH_TRACING=true` |
 | `LANGSMITH_PROJECT` | `role_scout` | LangSmith project name |
 | `FLASK_SECRET_KEY` | — | Required for Flask session/CSRF (generate with `python -c "import secrets; print(secrets.token_hex(32))"`) |
+
+### DB_PATH and migrating from Phase 1
+
+The default `DB_PATH` points to `../auto_jobsearch/output/jobsearch.db` for backwards compatibility with users who already have data there.
+
+- **Migrating from Phase 1**: keep the default and your existing database, run history, and scored jobs will carry over automatically.
+- **New users** (no prior `auto_jobsearch/` directory): set `DB_PATH=output/jobsearch.db` in `.env` so the database is created inside this repo's directory. You will also need to create a `candidate_profile.yaml` — copy the example from `config/` and fill in your details.
 
 ---
 
@@ -179,7 +184,7 @@ Full pipeline execution with `trigger_type=dry_run`. Nothing is persisted.
 uv run python run.py --shadow
 ```
 
-Runs both pipelines, diffs results, writes report to `shadow_diffs/YYYY-MM-DD-<run_id>.json`.
+Note: the side-by-side linear/agentic diff is not available (`_LINEAR_AVAILABLE = False`). Passing `--shadow` or setting `RUN_MODE=shadow` logs a warning and runs the agentic pipeline only. There is no diff report written.
 
 ### MCP server
 
@@ -194,13 +199,12 @@ Starts the stdio MCP server. Typically you do not run this directly — it is la
 | Flag | Description |
 |------|-------------|
 | `--agentic` | Execute the LangGraph pipeline |
-| `--shadow` | Run shadow mode (both pipelines + diff) |
 | `--serve` | Start the Flask dashboard on `127.0.0.1:5000` |
 | `--mcp` | Start the MCP server on stdio |
+| `--shadow` | Runs the agentic pipeline only (shadow diff unavailable) |
 | `--auto-approve` | Skip HiTL; approve automatically (used by scheduled runs) |
 | `--dry-run` | No DB writes (`trigger_type=dry_run`) |
 | `--force-partial` | Continue even if ≥2 discovery sources fail |
-| `--source NAME` | Override active sources; repeatable (e.g. `--source linkedin --source google`) |
 
 ---
 
@@ -238,35 +242,6 @@ Scheduled runs use `--auto-approve` (no HiTL prompt). The dashboard still shows 
 
 ---
 
-## Shadow mode promotion
-
-Before switching `RUN_MODE=agentic` in production, all three of these gates must pass:
-
-1. **Zero disagreements** (delta > 2 pts) across 6 consecutive real fetches
-2. **All eval gates pass** (see below)
-3. **Coverage ≥ 80%** (`uv run pytest --cov`)
-
-### Eval gates
-
-| Eval | Gate | Metric |
-|------|------|--------|
-| Scorer Spearman | ≥ 0.80 | Correlation vs 50+ ground-truth labels |
-| Alignment mean | ≥ 4.0/5.0 | LLM-as-judge on Claude's scoring reasoning |
-| Tailor quality mean | ≥ 4.0/5.0 | LLM-as-judge + 20% manual spot-check |
-| Discovery recall | ≥ 90% | Known jobs found vs manual search baseline |
-| Cost per run | ≤ $2.00 | 95th percentile across shadow runs |
-| p95 latency | < 3 min | End-to-end pipeline wall-clock time |
-| Scheduled reliability | ≥ 95% | Successful runs / scheduled runs over 30 days |
-
-Run evals:
-
-```bash
-uv run python -m role_scout.eval.run_eval --all
-# Reports written to eval/reports/YYYY-MM-DD-<type>.md
-```
-
----
-
 ## Observability
 
 Every run emits structured JSON logs via `structlog`. Each log line includes:
@@ -301,6 +276,12 @@ Set `LOG_LEVEL=DEBUG` in `.env` to see per-node state transitions and Claude pro
 ```
 role_scout/
 ├── src/role_scout/
+│   ├── compat/             # Absorbed Phase 1 code (frozen — never modify)
+│   │   ├── models.py       # NormalizedJob, ScoredJob, CandidateProfile
+│   │   ├── logging.py
+│   │   ├── db/             # seen_hashes, qualified_jobs, run_log DALs
+│   │   ├── fetchers/       # linkedin, google_jobs, trueup
+│   │   └── pipeline/       # normalize, dedup, enrich, scorer, alignment
 │   ├── dashboard/          # Flask app (routes, templates, static JS)
 │   │   ├── __init__.py     # create_app(), security headers
 │   │   ├── routes.py       # API + page routes
@@ -315,24 +296,24 @@ role_scout/
 │   │   ├── reflection.py   # Borderline re-score pass
 │   │   ├── review.py       # Persist + HiTL interrupt
 │   │   └── export.py       # Post-approval export
-│   ├── dal/                # Data access layer
+│   ├── dal/                # Phase 2 data access layer
 │   ├── mcp_server/         # MCP stdio server + tool schemas
 │   ├── eval/               # Eval harness (scorer, alignment, tailor)
-│   ├── prompts/            # Claude prompt templates
+│   ├── prompts/            # scoring_system.md, alignment_system.md,
+│   │                       # resume_tailor_system.md, scoring_reflection_system.md
 │   ├── graph.py            # LangGraph DAG definition
 │   ├── runner.py           # Pipeline orchestrator + resolve_pending()
 │   ├── tailor.py           # Resume tailoring (cache + Claude call)
-│   ├── claude_client.py    # Anthropic SDK wrapper with timeout
-│   ├── db.py               # SQLite helpers (WAL, ro_conn, rw_conn)
-│   └── config.py           # pydantic-settings Settings model
-├── auto_jobsearch/         # Phase 1 linear pipeline (frozen — do not modify)
+│   ├── config.py           # pydantic-settings Settings model
+│   └── db.py               # SQLite helpers (WAL, ro_conn, rw_conn)
+├── config/
+│   ├── resume_summary.md   # Your resume summary (read by tailor + alignment)
+│   └── watchlist.yaml      # Companies to highlight
 ├── tests/
 │   ├── unit/               # Per-node unit tests (mocked state in/out)
 │   ├── integration/        # Full-graph tests with mocked Claude
 │   └── e2e/                # Flask route E2E tests
 ├── docs/                   # PRD, spec, tech design, API spec, data model
-├── shadow_diffs/           # Shadow mode diff reports (gitignored)
-├── eval/reports/           # Eval output (gitignored)
 ├── run.py                  # Entry point
 ├── pyproject.toml
 └── .env.example
@@ -356,18 +337,8 @@ uv run ruff check .
 uv run ruff format .
 
 # Dependency vulnerability scan
-uv run pip-audit
+uv audit
 ```
-
-### Quality gates (required before promotion)
-
-| Gate | Command | Threshold |
-|------|---------|-----------|
-| Tests | `uv run pytest` | All pass |
-| Coverage | `uv run pytest --cov --cov-fail-under=80` | ≥ 80% |
-| Lint | `uv run ruff check .` | Zero errors |
-| Vuln scan | `uv run pip-audit` | Zero high/critical CVEs |
-| Shadow runs | Manual review of `shadow_diffs/` | Zero unexplained diffs |
 
 ---
 
@@ -376,6 +347,7 @@ uv run pip-audit
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Agentic framework | LangGraph | Native interrupt() support; checkpointing via MemorySaver; explicit node boundaries make unit testing straightforward |
+| Single-repo layout | compat/ sub-package | Phase 1 code is frozen and imported directly; no sibling repo dependency simplifies installation and CI |
 | Scoring approach | Batch Claude calls | One call per N jobs; cheaper and faster than per-job calls; reflection pass handles borderline cases |
 | Tailoring approach | One-shot Claude call | Simpler than Planner-Executor; quality is sufficient; cache makes repeat access free |
 | Threshold slider | Display filter only | Re-scoring would be expensive and slow; the slider filters the already-scored list client-side |

@@ -1,3 +1,7 @@
+> **HISTORICAL DOCUMENT** — This file reflects the design decisions made before implementation. The codebase has since evolved: Phase 1 (auto_jobsearch) is now absorbed into `role_scout/compat/` as a frozen sub-package; there is no sibling repo dependency. Treat this as design context, not current truth.
+
+---
+
 > **HISTORICAL DOCUMENT** — This file is superseded by the Phase 2 PRD set (`docs/PRD-CORE.md`, `docs/SPEC.md`, `docs/TECH-DESIGN.md`). It is retained for reference only. Do not implement from this document; some decisions recorded here (e.g. the `threshold_adjusted→scoring` graph edge) were explicitly reversed during PRD authoring.
 
 # Phase 2 — Agentic Job Search Pipeline
