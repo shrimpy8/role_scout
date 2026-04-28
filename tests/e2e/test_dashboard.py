@@ -35,7 +35,7 @@ def db_path(tmp_path: Path) -> str:
 def empty_db_path(tmp_path: Path) -> str:
     """Empty temp-file DB (schema only, no seed data) for idle-state tests."""
     import sqlite3
-    from jobsearch.db.connection import init_db as _p1_init_db
+    from role_scout.compat.db.connection import init_db as _p1_init_db
     from role_scout.migrations import run_migrations
 
     path = str(tmp_path / "empty_test.db")

@@ -11,11 +11,10 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from jobsearch.db.connection import init_db as _p1_init_db
-from jobsearch.db.qualified_jobs import insert_qualified_job
-from jobsearch.db.run_log import insert_run_log
-from jobsearch.db.seen_hashes import upsert_seen_hash
-from jobsearch.models import RunLog, ScoredJob
+from role_scout.compat.db.qualified_jobs import insert_qualified_job
+from role_scout.compat.db.run_log import insert_run_log
+from role_scout.compat.db.seen_hashes import upsert_seen_hash
+from role_scout.compat.models import RunLog, ScoredJob
 
 from role_scout.migrations import run_migrations
 

@@ -108,8 +108,9 @@ class TestDiscoveryNodeIntegration:
         settings_mock = MagicMock(spec=Settings)
         settings_mock.APIFY_TOKEN = "tok"
         settings_mock.SERPAPI_KEY = "key"
-        settings_mock.IMAP_EMAIL = "a@b.com"
-        settings_mock.IMAP_APP_PASSWORD = "pw"
+        settings_mock.IMAP_USER = "a@b.com"
+        settings_mock.IMAP_PASSWORD = "pw"
+        settings_mock.IMAP_FOLDER = "INBOX"
         settings_mock.DB_PATH = ":memory:"
         settings_mock.DISCOVERY_MAX_ITEMS = 50
 
@@ -121,7 +122,7 @@ class TestDiscoveryNodeIntegration:
         def _fake_run_google(profile, key, max_results=50):
             return google_result
 
-        def _fake_run_trueup(email, pw):
+        def _fake_run_trueup(email, pw, folder="INBOX"):
             return trueup_result
 
         fake_normalized = [

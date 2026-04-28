@@ -50,7 +50,7 @@ class TestConcurrentFetch:
             time.sleep(0.05)
             return [], {}
 
-        def slow_trueup(email, password):
+        def slow_trueup(email, password, folder="INBOX"):
             call_times.append(time.monotonic())
             time.sleep(0.05)
             return [], {}
@@ -58,8 +58,9 @@ class TestConcurrentFetch:
         settings = MagicMock(spec=Settings)
         settings.APIFY_TOKEN = "tok"
         settings.SERPAPI_KEY = "key"
-        settings.IMAP_EMAIL = "a@b.com"
-        settings.IMAP_APP_PASSWORD = "pw"
+        settings.IMAP_USER = "a@b.com"
+        settings.IMAP_PASSWORD = "pw"
+        settings.IMAP_FOLDER = "INBOX"
         settings.DISCOVERY_MAX_ITEMS = 50
 
         with (
@@ -135,7 +136,7 @@ class TestImaplibConcurrency:
         open_ids: list[int] = []
         connection_count = 0
 
-        def fake_fetch_trueup(user, password):
+        def fake_fetch_trueup(user, password, folder="INBOX"):
             nonlocal connection_count
             connection_count += 1
             open_ids.append(id(user))
