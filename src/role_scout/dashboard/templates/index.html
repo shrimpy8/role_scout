@@ -173,7 +173,8 @@
         role="button" tabindex="0"
         aria-expanded="false"
         onkeydown="if(event.key==='Enter'){rsToggleExpand('{{ job.hash_id }}', event)}">
-      <td>
+      <td style="display:flex;align-items:center;gap:6px">
+        <span class="row-chevron">▾</span>
         <span class="match-badge {{ 'high' if job.match_pct >= 90 else 'mid' }}">
           {{ job.match_pct }}%
         </span>

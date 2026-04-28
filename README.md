@@ -20,6 +20,8 @@ Job searching is repetitive and noisy. Role Scout solves three specific problems
 
 ## Architecture
 
+![Pipeline Diagram](screenshots/pipeline-diagram.png)
+
 Role Scout is a single self-contained repository. Phase 1 (the linear fetch-normalize-score pipeline, originally `auto_jobsearch`) has been absorbed into `src/role_scout/compat/` as a frozen sub-package. There is no sibling repo required — a single `git clone` + `uv sync` is all you need.
 
 ```
@@ -61,12 +63,19 @@ Role Scout is a single self-contained repository. Phase 1 (the linear fetch-norm
 ## Features
 
 ### Dashboard
+
+![Dashboard — Qualified Roles](screenshots/DashboardShowingQualifiedRoles.png)
+
 - Qualified jobs table with 11 columns: title, company, location, work model, stage, comp, score, source, status, external link, tailor
 - Sortable columns — click any header to toggle ascending/descending; active sort and direction preserved in URL
 - Sidebar status filters: New / Reviewed / Applied / Rejected / All Active / History with live per-status counts
 - Sidebar source filters: All / LinkedIn / Google Jobs / TrueUp
 - Threshold slider — **display filter only**, never re-scores; hides rows below the chosen match %
 - Expandable detail rows with animated SVG score ring, per-dimension score bars (Seniority / Domain / Location / Stage / Comp), and Claude's scoring reasoning
+
+![Role Detail — Score Breakdown](screenshots/RoleDetails.png)
+
+![Role Detail — JD Alignment & Resume Tailor](screenshots/RoleDetails_JDAlignment_ResumeTailor.png)
 - Inline status updates — dropdown per row; changes persist immediately to the DB without a page reload
 - JD alignment panel: one-click Claude analysis of strong matches, reframing opportunities, and genuine gaps vs. your resume; cached in the DB per job
 - Work model pills (Remote / Hybrid / On-site) and stage pills (Seed / Series A–D / Public / Acquired)
