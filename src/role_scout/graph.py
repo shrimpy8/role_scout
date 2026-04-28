@@ -91,6 +91,7 @@ def build_graph(
         serde = JsonPlusSerializer(
             allowed_msgpack_modules=[
                 ("role_scout.compat.models", "CandidateProfile"),
+                ("role_scout.compat.models", "ScoredJob"),
                 ("role_scout.models.core", "SourceHealthEntry"),
             ]
         )
