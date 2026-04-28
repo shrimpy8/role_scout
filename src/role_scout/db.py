@@ -18,7 +18,7 @@ from role_scout.migrations import run_migrations
 log = structlog.get_logger()
 
 
-def init_db(db_path: str | Path = "../auto_jobsearch/output/jobsearch.db") -> None:
+def init_db(db_path: str | Path = "output/jobsearch.db") -> None:
     """Create all tables (Phase 1) then apply Phase 2 migrations. Idempotent."""
     path = str(db_path)
     Path(path).parent.mkdir(parents=True, exist_ok=True)

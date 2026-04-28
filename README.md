@@ -26,18 +26,18 @@ Role Scout is a single self-contained repository. Phase 1 (the linear fetch-norm
 ┌──────────────────────────────────────────────────────────────┐
 │  Agentic Layer                                               │
 │                                                              │
-│  LangGraph DAG ──► HiTL interrupt ──► Flask dashboard       │
+│  LangGraph DAG ──► HiTL interrupt ──► Flask dashboard        │
 │       │                                    │                 │
-│   Reflection                          MCP server            │
-│   (borderline                     (Claude Code CLI)         │
+│   Reflection                          MCP server             │
+│   (borderline                     (Claude Code CLI)          │
 │    70-89% re-score)                                          │
 └────────────────────────┬─────────────────────────────────────┘
                          │ imports from
 ┌────────────────────────▼─────────────────────────────────────┐
 │  compat/ — Phase 1 linear pipeline (frozen — never modify)   │
 │                                                              │
-│  fetch → normalize → dedup → enrich → score                 │
-│  (LinkedIn · Google Jobs · TrueUp email alerts)             │
+│  fetch → normalize → dedup → enrich → score                  │
+│  (LinkedIn · Google Jobs · TrueUp email alerts)              │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -132,7 +132,7 @@ All runtime configuration lives in `.env`. No values are hardcoded.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DB_PATH` | `../auto_jobsearch/output/jobsearch.db` | SQLite database file path |
+| `DB_PATH` | `output/jobsearch.db` | SQLite database file path (created automatically on first run) |
 | `RUN_MODE` | `agentic` | `agentic` — shadow mode is unavailable (see note below) |
 | `SCORE_THRESHOLD` | `85` | Minimum match % to qualify a job |
 | `MAX_COST_USD` | `5.00` | Per-run cost kill-switch (USD) |
@@ -142,12 +142,14 @@ All runtime configuration lives in `.env`. No values are hardcoded.
 | `LANGSMITH_PROJECT` | `role_scout` | LangSmith project name |
 | `FLASK_SECRET_KEY` | — | Required for Flask session/CSRF (generate with `python -c "import secrets; print(secrets.token_hex(32))"`) |
 
-### DB_PATH and migrating from Phase 1
+### Candidate profile and watchlist
 
-The default `DB_PATH` points to `../auto_jobsearch/output/jobsearch.db` for backwards compatibility with users who already have data there.
+Before running the pipeline you need two config files that are **not committed** (they contain personal data):
 
-- **Migrating from Phase 1**: keep the default and your existing database, run history, and scored jobs will carry over automatically.
-- **New users** (no prior `auto_jobsearch/` directory): set `DB_PATH=output/jobsearch.db` in `.env` so the database is created inside this repo's directory. You will also need to create a `candidate_profile.yaml` — copy the example from `config/` and fill in your details.
+- `config/candidate_profile.yaml` — your job search preferences (titles, locations, company stage, etc.)
+- `config/watchlist.yaml` — companies to highlight in the dashboard
+
+Copy the examples from `config/` and fill in your details. The `output/` directory and database are created automatically on first run.
 
 ---
 

@@ -72,10 +72,10 @@ class Settings(BaseSettings):
     LOG_FILE: str | None = None
 
     # ---- Storage ----
-    DB_PATH: Path = Path("../auto_jobsearch/output/jobsearch.db")
+    DB_PATH: Path = Path("output/jobsearch.db")
     RESUME_SUMMARY_PATH: Path = Path("config/resume_summary.md")
-    CANDIDATE_PROFILE_PATH: Path = Path("../auto_jobsearch/config/candidate_profile.yaml")
-    WATCHLIST_PATH: Path = Path("../auto_jobsearch/config/watchlist.yaml")
+    CANDIDATE_PROFILE_PATH: Path = Path("config/candidate_profile.yaml")
+    WATCHLIST_PATH: Path = Path("config/watchlist.yaml")
 
     # ---- Source health ----
     SERPAPI_MIN_QUOTA: int = Field(default=10, ge=1)

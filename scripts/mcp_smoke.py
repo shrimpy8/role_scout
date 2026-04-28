@@ -12,10 +12,9 @@ import json
 import sys
 from pathlib import Path
 
-# Ensure the repo root and auto_jobsearch are on sys.path
+# Ensure the repo root is on sys.path
 _REPO = Path(__file__).parent.parent
-_AUTO_JOBSEARCH = _REPO.parent / "auto_jobsearch"
-for p in [str(_REPO / "src"), str(_REPO), str(_AUTO_JOBSEARCH)]:
+for p in [str(_REPO / "src"), str(_REPO)]:
     if p not in sys.path:
         sys.path.insert(0, p)
 

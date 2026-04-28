@@ -1,15 +1,8 @@
-"""Root conftest — ensures editable sibling installs resolve under Anaconda Python."""
+"""Root conftest."""
 
 import sqlite3
-import sys
-from pathlib import Path
 
 import pytest
-
-_AUTO_JOBSEARCH = Path(__file__).parents[1] / ".." / "auto_jobsearch"
-_resolved = str(_AUTO_JOBSEARCH.resolve())
-if _resolved not in sys.path:
-    sys.path.insert(0, _resolved)
 
 
 @pytest.fixture
