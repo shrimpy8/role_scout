@@ -25,12 +25,12 @@
 | # | Tool | Side effects | Calls into |
 |---|------|--------------|------------|
 | 1 | `run_pipeline` | Writes run_log, qualified_jobs, JD files | LangGraph with `auto_approve=True` |
-| 2 | `get_jobs` | none | Phase 1 DAL `get_qualified_jobs()` |
-| 3 | `get_job_detail` | none | Phase 1 DAL `get_job_by_hash_id()` |
-| 4 | `analyze_job` | Writes alignment cache | Phase 1 `run_alignment()` |
-| 5 | `tailor_resume` | Writes `qualified_jobs.tailored_resume` | F4 `tailor_resume()` |
-| 6 | `update_job_status` | Writes `qualified_jobs.status` | Phase 1 DAL `update_job_status()` |
-| 7 | `get_run_history` | none | Phase 1 DAL `get_run_logs()` |
+| 2 | `get_jobs` | none | `role_scout.compat` DAL `get_qualified_jobs()` |
+| 3 | `get_job_detail` | none | `role_scout.compat` DAL `get_job_by_hash_id()` |
+| 4 | `analyze_job` | Writes alignment cache | `role_scout.compat.pipeline.alignment.run_alignment()` |
+| 5 | `tailor_resume` | Writes `qualified_jobs.tailored_resume` | `role_scout.nodes.tailor.tailor_resume()` |
+| 6 | `update_job_status` | Writes `qualified_jobs.status` | `role_scout.compat` DAL `update_job_status()` |
+| 7 | `get_run_history` | none | `role_scout.compat` DAL `get_run_logs()` |
 | 8 | `get_watchlist` | none | Reads `config/watchlist.yaml` |
 | 9 | `manage_watchlist` | Writes `config/watchlist.yaml` (atomic rename) | Same |
 

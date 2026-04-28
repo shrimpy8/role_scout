@@ -225,7 +225,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TypedDict
 
-from jobsearch.models import CandidateProfile, NormalizedJob, ScoredJob  # Phase 1 imports
+from role_scout.compat.models import CandidateProfile, NormalizedJob, ScoredJob
 from role_scout.models.core import (
     CancelReason, RunId, RunMode, SourceName, SourceHealthEntry, TriggerType,
 )

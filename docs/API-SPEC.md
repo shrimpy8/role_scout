@@ -775,13 +775,13 @@ HTTP/1.1 403 Forbidden
 
 ## 6. Implementation Pointers
 
-- Flask blueprint: `role_scout/dashboard_ext/routes.py` — does NOT live under `auto_jobsearch/` (frozen).
-- Register blueprint on the existing Flask app in a new module `role_scout/dashboard_ext/__init__.py::register(app)`.
+- Flask blueprint: `role_scout/dashboard/routes.py`.
+- Register blueprint on the existing Flask app in `role_scout/dashboard/__init__.py::register(app)`.
 - `before_request`: generate `X-Request-ID` if absent; bind to structlog context.
 - `after_request`: attach `X-Request-ID` and `X-Run-ID` (when known) to every response.
 - CSRF: Flask-WTF `csrf.init_app(app)`; `@csrf.exempt` on the GET routes only.
-- Rate-limit headers: middleware in `role_scout/dashboard_ext/middleware.py` sets informational counters.
-- Pydantic request/response models live in `DATA-MODEL.md` and become `role_scout/dashboard_ext/models.py`.
+- Rate-limit headers: middleware in `role_scout/dashboard/middleware.py` sets informational counters.
+- Pydantic request/response models live in `DATA-MODEL.md` and become `role_scout/dashboard/models.py`.
 
 ---
 
