@@ -108,6 +108,34 @@ Three eval tracks run against 50+ ground-truth jobs:
 
 ---
 
+## Getting API Keys
+
+Role Scout uses three external APIs for job discovery. All have free tiers you can start with.
+
+### Anthropic (Claude)
+Sign up at [console.anthropic.com](https://console.anthropic.com). Create an API key under **API Keys**. Claude is used for scoring, reflection, tailoring, and alignment — it is the only required paid service for the core pipeline.
+
+### SerpAPI — Google Jobs source
+SerpAPI scrapes Google Jobs search results.
+
+- Sign up and get your key: [serpapi.com](https://serpapi.com)
+- Pricing (100 free searches/month on the free plan): [serpapi.com/pricing](https://serpapi.com/pricing)
+
+Set `SERPAPI_KEY=<your key>` in `.env`. The pipeline uses one search per job title / location combination defined in your candidate profile. 100 free searches covers roughly 2–4 pipeline runs per month depending on how many search queries your profile generates.
+
+### Apify — LinkedIn source
+Apify runs the LinkedIn Jobs scraper actor.
+
+- Sign up and get your token: [apify.com](https://apify.com)
+- Pricing (free tier available, pay-per-compute-unit above that): [apify.com/pricing](https://apify.com/pricing)
+
+Set `APIFY_TOKEN=<your token>` in `.env`. Each pipeline run consumes a small number of compute units depending on how many LinkedIn results are fetched (`DISCOVERY_MAX_ITEMS` in `.env`, default 50 per run).
+
+### TrueUp — email digest source
+No API key required. TrueUp sends job alert digests to your inbox. Role Scout reads them via IMAP. Set `IMAP_USER`, `IMAP_PASSWORD` (use an app-specific password, not your account password), and `IMAP_FOLDER` in `.env`.
+
+---
+
 ## Installation
 
 ```bash
