@@ -113,9 +113,12 @@
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      if (!approved && el) {
+      if (approved) {
+        if (el) el.innerHTML = '<div class="alert alert-success mb-3">Approved — loading jobs…</div>';
+        setTimeout(() => location.reload(), 2000);
+      } else {
         cancelledRunId = data.run_id || null;
-        el.innerHTML = '<div class="alert banner-cancelled mb-3">Run cancelled. Re-run when ready.</div>';
+        if (el) el.innerHTML = '<div class="alert banner-cancelled mb-3">Run cancelled. Re-run when ready.</div>';
       }
     } catch (e) {
       if (el) {

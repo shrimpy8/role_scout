@@ -41,7 +41,7 @@ def init_db(db_path: str = "output/jobsearch.db") -> None:
                 url              TEXT NOT NULL,
                 apply_url        TEXT,
                 source           TEXT NOT NULL
-                                 CHECK(source IN ('linkedin','google_jobs','wellfound','trueup')),
+                                 CHECK(source IN ('linkedin','google_jobs','trueup')),
                 posted_date      TEXT,
                 comp_range       TEXT,
                 salary_visible   INTEGER NOT NULL DEFAULT 0 CHECK(salary_visible IN (0,1)),

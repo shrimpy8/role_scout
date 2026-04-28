@@ -78,8 +78,9 @@ def _apply_reflection_result(job: ScoredJob, raw_response: str) -> tuple[ScoredJ
 
         updates: dict[str, Any] = {"match_pct": revised_score}
         for field in ("role_fit", "domain_fit", "comp_score", "level_fit", "location_fit"):
-            if field in revised_subscores:
-                updates[field] = int(revised_subscores[field])
+            val = revised_subscores.get(field)
+            if val is not None:
+                updates[field] = int(val)
 
         return job.model_copy(update=updates), True
 

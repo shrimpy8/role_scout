@@ -142,6 +142,13 @@ class ScoredJob(BaseModel):
     company_stage_fit: str | None = None
     jd_alignment: str | None = None
 
+    @field_validator("location_fit", "company_stage_fit", mode="before")
+    @classmethod
+    def _coerce_to_str(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        return str(v)
+
     # Workflow
     status: str = Field(default="new", description="new | reviewed | applied | rejected")
     jd_filename: str | None = None

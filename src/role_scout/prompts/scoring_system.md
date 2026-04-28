@@ -68,7 +68,8 @@ hash_id (string, copy from input), match_pct (integer), seniority_score (integer
 domain_score (integer), location_score (integer), stage_score (integer),
 comp_score (integer), reasoning (2-3 sentences), key_requirements (3-5 strings),
 red_flags (0-3 strings), domain_alignment (string), seniority_match (string),
-location_fit (string), company_stage_fit (string).
+location_fit (string — a brief phrase describing the location match, e.g. "Fully remote", "Bay Area hybrid", "NYC onsite - no remote option"),
+company_stage_fit (string — a brief phrase describing stage fit, e.g. "Series B - sweet spot", "Public company - lower fit").
 
 ## Jobs to Score
 
