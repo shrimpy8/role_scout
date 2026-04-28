@@ -18,6 +18,7 @@ log = structlog.get_logger()
 def run_trueup(
     imap_user: str,
     imap_password: str,
+    imap_host: str = "imap.mail.yahoo.com",
     imap_folder: str = "INBOX",
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Synchronous TrueUp IMAP fetch. Returns (raw_jobs, query_params).
@@ -26,7 +27,7 @@ def run_trueup(
     so concurrent calls are safe (no shared mailbox state).
     """
     query_params: dict[str, Any] = {
-        "host": "imap.gmail.com",
+        "host": imap_host,
         "folder": imap_folder,
         "max_emails": 3,
     }
@@ -35,6 +36,7 @@ def run_trueup(
         raw = fetch_trueup(
             user=imap_user,
             password=imap_password,
+            host=imap_host,
             folder=imap_folder,
         )
         duration = time.monotonic() - t0

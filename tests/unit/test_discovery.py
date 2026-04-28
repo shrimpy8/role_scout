@@ -50,7 +50,7 @@ class TestConcurrentFetch:
             time.sleep(0.05)
             return [], {}
 
-        def slow_trueup(email, password, folder="INBOX"):
+        def slow_trueup(email, password, host="imap.mail.yahoo.com", folder="INBOX"):
             call_times.append(time.monotonic())
             time.sleep(0.05)
             return [], {}
@@ -60,6 +60,7 @@ class TestConcurrentFetch:
         settings.SERPAPI_KEY = "key"
         settings.IMAP_USER = "a@b.com"
         settings.IMAP_PASSWORD = "pw"
+        settings.IMAP_HOST = "imap.mail.yahoo.com"
         settings.IMAP_FOLDER = "INBOX"
         settings.DISCOVERY_MAX_ITEMS = 50
 
@@ -136,7 +137,7 @@ class TestImaplibConcurrency:
         open_ids: list[int] = []
         connection_count = 0
 
-        def fake_fetch_trueup(user, password, folder="INBOX"):
+        def fake_fetch_trueup(user, password, host="imap.mail.yahoo.com", folder="INBOX"):
             nonlocal connection_count
             connection_count += 1
             open_ids.append(id(user))

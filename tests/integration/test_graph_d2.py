@@ -110,6 +110,7 @@ class TestDiscoveryNodeIntegration:
         settings_mock.SERPAPI_KEY = "key"
         settings_mock.IMAP_USER = "a@b.com"
         settings_mock.IMAP_PASSWORD = "pw"
+        settings_mock.IMAP_HOST = "imap.mail.yahoo.com"
         settings_mock.IMAP_FOLDER = "INBOX"
         settings_mock.DB_PATH = ":memory:"
         settings_mock.DISCOVERY_MAX_ITEMS = 50
@@ -122,7 +123,7 @@ class TestDiscoveryNodeIntegration:
         def _fake_run_google(profile, key, max_results=50):
             return google_result
 
-        def _fake_run_trueup(email, pw, folder="INBOX"):
+        def _fake_run_trueup(email, pw, host="imap.mail.yahoo.com", folder="INBOX"):
             return trueup_result
 
         fake_normalized = [

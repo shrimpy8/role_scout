@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     APIFY_TOKEN: str | None = None
     IMAP_USER: str | None = None
     IMAP_PASSWORD: str | None = None
+    IMAP_HOST: str = "imap.mail.yahoo.com"
     IMAP_FOLDER: str = "INBOX"
 
     # ---- Optional eval keys (only required when running evals) ----
