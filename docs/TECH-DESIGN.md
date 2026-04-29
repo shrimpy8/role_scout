@@ -419,7 +419,7 @@ Schedule Mon/Thu 08:00 unchanged.
 | ADR-1 | Orchestration substrate | LangGraph / Temporal / Airflow / custom asyncio | **LangGraph** | Native interrupt/resume, minimal infra, Python-native |
 | ADR-2 | Checkpointer | MemorySaver / SqliteSaver | **MemorySaver** (Phase 2) | 4h TTL + single-user interactive use makes crash-recovery unnecessary; SqliteSaver deferred to Phase 3 |
 | ADR-3 | Agentic surface | Build chat UI / MCP / REST | **MCP** | Claude Code integration is the user's natural agent; no chat UI to build |
-| ADR-4 | Reflection scope | None / scoring-only / scoring+tailoring / all Claude calls | **Scoring-only, borderline 70–89%** | Highest volume × evidence of errors × measurability; tailoring has user-as-QA, discovery has no real decision |
+| ADR-4 | Reflection scope | None / scoring-only / scoring+tailoring / all Claude calls | **Scoring-only, borderline 75–89%** | Highest volume × evidence of errors × measurability; tailoring has user-as-QA, discovery has no real decision |
 | ADR-5 | Tailoring pattern | One-shot / Planner-Executor | **One-shot** | User edits output; no evidence one-shot fails; 3–5× cost for Planner-Executor unjustified; eval gate can flip this later |
 | ADR-6 | Discovery routing | ReAct / rules / none | **Deterministic rules** (source health, quota, query log) | 3-source decision surface too small for ReAct value |
 | ADR-7 | Threshold slider | Re-score on change / display-filter only | **Display-filter only** | Re-score burns $ and contradicts "slider is live UI control"; threshold is a view, not a model input |

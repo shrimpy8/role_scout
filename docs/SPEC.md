@@ -98,7 +98,7 @@ See [TECH-DESIGN §3.1](./TECH-DESIGN.md#31-state-schema-jobsearchstate) for ful
 | `discovery` | `candidate_profile`, `watchlist` | `raw_by_source`, `normalized_jobs`, `new_jobs`, `source_counts`, `errors[]` | `seen_hashes` NOT touched until output_node | All 3 sources fail (without `--force-partial`) |
 | `enrichment` | `new_jobs` (then **trim** `raw_by_source`, `normalized_jobs`) | `enriched_jobs`, `watchlist_hits` | None | Zero enrichable jobs AND `new_jobs` was non-empty (bug state) |
 | `scoring` | `enriched_jobs`, `candidate_profile`, `qualify_threshold` | `scored_jobs` (all scored, not yet filtered), `scoring_tokens_in`, `scoring_tokens_out` | Claude API call | Claude rate limit after 3 retries |
-| `reflection` | `scored_jobs` (filter to 70–89% subset) | `scored_jobs` (updated w/ reflected scores + `reflection_applied: bool` per job), `reflection_tokens_in/out` | Claude API call (only on borderline subset) | Claude rate limit after 3 retries |
+| `reflection` | `scored_jobs` (filter to 75–89% subset) | `scored_jobs` (updated w/ reflected scores + `reflection_applied: bool` per job), `reflection_tokens_in/out` | Claude API call (only on borderline subset) | Claude rate limit after 3 retries |
 | `review` | `scored_jobs` (filter ≥ threshold for display) | `human_approved: bool`, `cancel_reason: str \| None` | `run_log.status=review_pending`; waits on `interrupt()` OR auto-approves | TTL (4h) expiry |
 | `output` | `scored_jobs` (filtered ≥ threshold) | `exported_count` | Insert `qualified_jobs` rows, upsert `seen_hashes`, export JD files, `run_log.status=completed` + cost columns | DB write error |
 
@@ -163,7 +163,7 @@ uv run python run.py                                    # Phase 1 linear orchest
 
 ### 3.1 Overview
 
-Claude reviews its own scoring output on borderline jobs (score 70–89%) to catch internal inconsistencies (e.g., `comp_score=0` when `salary_visible=False`, subscores summing to a score that doesn't match the total).
+Claude reviews its own scoring output on borderline jobs (score 75–89%) to catch internal inconsistencies (e.g., `comp_score=0` when `salary_visible=False`, subscores summing to a score that doesn't match the total).
 
 ### 3.2 Acceptance Criteria
 

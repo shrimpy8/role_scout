@@ -33,7 +33,7 @@ Wrap the stable Phase 1 pipeline in a LangGraph workflow with HiTL review, add a
 ### Why Now?
 - **Phase 1 is stable** — frozen on `main`, 3 live sources, tests green. No risk of building Phase 2 on a moving base.
 - **LangGraph + MCP SDK are production-ready** — both ≥1.0, with stable interrupt/resume and stdio transport.
-- **Reflection pattern on scoring is cheap** — Claude cost for re-reviewing 70–89% borderline jobs is <20% of the base scoring cost.
+- **Reflection pattern on scoring is cheap** — Claude cost for re-reviewing 75–89% borderline jobs is <20% of the base scoring cost.
 - **Cost of waiting** — every week that passes without an eval harness is a week of unmeasured prompt drift.
 
 ### The Bet
@@ -98,7 +98,7 @@ Wrap the stable Phase 1 pipeline in a LangGraph workflow with HiTL review, add a
 | # | Feature | User Outcome | Priority | Spec Section |
 |---|---------|--------------|----------|--------------|
 | F1 | LangGraph workflow (6 nodes + reflection subgraph) | Pause mid-run to approve/cancel; parallel fetch ~3× faster | P0 | [SPEC §2](./SPEC.md#2-f1-langgraph-workflow) |
-| F2 | Reflection-on-scoring (borderline 70–89% re-review) | Catches subscore/total inconsistencies silently | P0 | [SPEC §3](./SPEC.md#3-f2-reflection-on-scoring) |
+| F2 | Reflection-on-scoring (borderline 75–89% re-review) | Catches subscore/total inconsistencies silently | P0 | [SPEC §3](./SPEC.md#3-f2-reflection-on-scoring) |
 | F3 | MCP server (9 tools, stdio) | Claude Code can run pipeline, fetch jobs, tailor, update status conversationally | P0 | [SPEC §4](./SPEC.md#4-f3-mcp-server) |
 | F4 | Resume tailoring (one-shot + quality eval) | Tailored summary/bullets/keywords per JD on demand | P0 | [SPEC §5](./SPEC.md#5-f4-resume-tailoring) |
 | F5 | Eval framework (50+ ground truth, cross-model judge) | Quantified scoring/alignment/tailoring/discovery quality | P0 | [SPEC §6](./SPEC.md#6-f5-eval-framework) |
@@ -146,7 +146,7 @@ Wrap the stable Phase 1 pipeline in a LangGraph workflow with HiTL review, add a
 |---|-------------|--------------------------|
 | D1 | New folder, `pyproject.toml`, deps installed, `JobSearchState` TypedDict, empty graph compiles | `uv run pytest` green; `from jobsearch import ...` works |
 | D2 | `preflight_node` + `discovery_node` with `asyncio.gather`; source health tracking (F7) | `--agentic --dry-run` fetches 3 sources concurrently; source_health columns populated; 3 consecutive-fail auto-skip works |
-| D3 | `enrichment_node` concurrent; `scoring_node` wired to Phase 1 `score_jobs_batch()`; reflection subgraph on borderline 70–89% (F2) | Dry run prints reflection deltas; cost logged |
+| D3 | `enrichment_node` concurrent; `scoring_node` wired to Phase 1 `score_jobs_batch()`; reflection subgraph on borderline 75–89% (F2) | Dry run prints reflection deltas; cost logged |
 | D4 | `review_node` with `interrupt()`; output_node; 4h TTL auto-cancel | Full graph end-to-end with CLI HiTL (terminal mode) — 3 clean runs |
 | D5 | MCP server (F3) — all 9 tools, stdio, `run_pipeline` auto-approves, Claude Code config tested | "@jobsearch get_jobs limit=5" works in Claude Code |
 | D6 | `resume_tailor.py` + prompt + DB migration (additive) + Flask route + Tailor button (F4, F6) | Tailor button returns structured output cached by (resume_hash, prompt_ver, hash_id) |

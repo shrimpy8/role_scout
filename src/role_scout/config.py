@@ -38,10 +38,10 @@ class Settings(BaseSettings):
 
     # ---- Pipeline tuning ----
     # Coerced from float to int to accept legacy Phase 1 .env values like "0.69"
-    SCORE_THRESHOLD: int = Field(default=85, ge=0, le=100)
+    SCORE_THRESHOLD: int = Field(default=75, ge=0, le=100)
     DISCOVERY_MAX_ITEMS: int = Field(default=50, ge=1, le=200)
     REFLECTION_ENABLED: bool = True
-    REFLECTION_BAND_LOW: int = Field(default=70, ge=0, le=100)
+    REFLECTION_BAND_LOW: int = Field(default=75, ge=0, le=100)
     REFLECTION_BAND_HIGH: int = Field(default=89, ge=0, le=100)
 
     @field_validator("SCORE_THRESHOLD", mode="before")
@@ -85,7 +85,7 @@ class Settings(BaseSettings):
     @field_validator("REFLECTION_BAND_HIGH")
     @classmethod
     def _band_high_gt_low(cls, v: int, info: object) -> int:
-        low = getattr(info, "data", {}).get("REFLECTION_BAND_LOW", 70)
+        low = getattr(info, "data", {}).get("REFLECTION_BAND_LOW", 75)
         if v <= low:
             raise ValueError(
                 f"REFLECTION_BAND_HIGH ({v}) must be greater than REFLECTION_BAND_LOW ({low})"

@@ -38,7 +38,7 @@ flowchart TD
     end
 
     subgraph RF["⑤ REFLECTION — Claude"]
-        RF1{"Borderline jobs 70–89%?"}
+        RF1{"Borderline jobs 75–89%?"}
         RF2["`Second Claude pass per borderline job
         Original score + sub-scores shown to Claude
         Check for inconsistencies · Score may move **up or down**`"]
@@ -80,8 +80,8 @@ flowchart TD
 
     %% Score bands — all three feed into Reflection
     SC2 -->|">= 85%  QUALIFIED"| RF1
-    SC2 -->|"70–89%  BORDERLINE"| RF1
-    SC2 -->|"< 70%  DROPPED"| RF1
+    SC2 -->|"75–89%  BORDERLINE"| RF1
+    SC2 -->|"< 75%  DROPPED"| RF1
 
     %% Reflection outcomes
     RF1 -->|No borderline jobs| RV1

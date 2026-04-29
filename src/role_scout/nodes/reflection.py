@@ -1,4 +1,4 @@
-"""reflection_node — second-pass Claude review for borderline-scored jobs (70–89%)."""
+"""reflection_node — second-pass Claude review for borderline-scored jobs (REFLECTION_BAND_LOW–REFLECTION_BAND_HIGH)."""
 from __future__ import annotations
 
 import json
