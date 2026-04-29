@@ -49,6 +49,7 @@ docs/DEVELOPMENT_TODOS.md
 AgenticJobSearchPipeline.md
 EVALTODO.md
 docs/EVAL-GUIDE.md
+docs/MANUAL_TESTING.md
 
 # Personal / candidate-specific data (never commit real resume or preferences)
 config/resume_summary.md
