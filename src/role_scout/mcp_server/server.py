@@ -457,14 +457,15 @@ def _tool_analyze_job(arguments: dict[str, Any], settings: Settings) -> CallTool
     )
 
     # Persist to DB
+    rw_conn = get_rw_conn(settings.DB_PATH)
     try:
-        rw_conn = get_rw_conn(settings.DB_PATH)
         from role_scout.compat.db.qualified_jobs import update_jd_alignment
         update_jd_alignment(rw_conn, inp.hash_id, raw_json)
         rw_conn.commit()
-        rw_conn.close()
     except Exception:
         log.exception("analyze_job_persist_failed", hash_id=inp.hash_id)
+    finally:
+        rw_conn.close()
 
     return _ok(result)
 
@@ -491,20 +492,14 @@ def _tool_tailor_resume(arguments: dict[str, Any], settings: Settings) -> CallTo
             output_cost_per_mtok=settings.CLAUDE_OUTPUT_COST_PER_MTOK,
         )
     except NotQualifiedError as exc:
-        conn.close()
         return _err("NOT_QUALIFIED", str(exc))
     except TailorParseError as exc:
-        conn.close()
         return _err("TAILOR_PARSE_ERROR", str(exc))
     except Exception as exc:
-        conn.close()
         log.exception("tailor_resume_failed", hash_id=inp.hash_id)
         return _err("INTERNAL_ERROR", str(exc))
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        conn.close()
 
     return _ok(result.model_dump(mode="json"))
 

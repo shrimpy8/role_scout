@@ -168,7 +168,8 @@ def score_jobs_batch(
         (candidate_profile.model_dump() if isinstance(candidate_profile, CandidateProfile) else candidate_profile).keys()
     )
     _validate_prompt_template(template, p_keys)
-    client = anthropic.Anthropic(api_key=api_key)
+    from role_scout.claude_client import CLAUDE_TIMEOUT_S
+    client = anthropic.Anthropic(api_key=api_key, timeout=CLAUDE_TIMEOUT_S)
     qualified: list[ScoredJob] = []
     n_batches = math.ceil(len(jobs) / batch_size)
 
