@@ -40,15 +40,19 @@ testrun.txt
 .DS_Store
 
 # Internal planning & workflow docs (not for public consumption)
-# Keep: PRD-CORE, SPEC, TECH-DESIGN, EXP-BRIEF, API-SPEC, DATA-MODEL, MCP-SCHEMAS, TEST-PLAN, PHASE2-AGENTIC-PLAN
+# Keep: PRD-CORE, SPEC, TECH-DESIGN, API-SPEC, DATA-MODEL, MCP-SCHEMAS, TEST-PLAN
 docs/notes.md
 docs/notes2.md
 docs/PHASE2_SESSION-HANDOVER.md
 docs/FEATURE_STATUS.md
+docs/EXP-BRIEF.md
+docs/PHASE2-AGENTIC-PLAN.md
+docs/dashboard-revamp-plan.md
 docs/DEVELOPMENT_TODOS.md
 AgenticJobSearchPipeline.md
 EVALTODO.md
 docs/EVAL-GUIDE.md
+docs/SESSION-HANDOVER.md
 docs/MANUAL_TESTING.md
 
 # Personal / candidate-specific data (never commit real resume or preferences)
