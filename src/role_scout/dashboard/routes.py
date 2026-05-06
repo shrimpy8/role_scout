@@ -5,7 +5,6 @@ All write routes require CSRF token (Flask-WTF).
 """
 from __future__ import annotations
 
-import itertools
 import json
 import re
 import uuid
@@ -19,6 +18,7 @@ from flask import Blueprint, g, jsonify, request, send_from_directory
 from role_scout.config import Settings
 from role_scout.dal import watchlist_dal
 from role_scout.db import get_ro_conn, get_rw_conn, ro_conn, rw_conn
+from role_scout.watchlist_state import current_revision, next_revision
 
 log = structlog.get_logger()
 
@@ -32,16 +32,6 @@ _VALID_SORT_COLS = {"match_pct", "company", "title", "city", "work_model", "comp
 _VALID_DIRS = {"asc", "desc"}
 
 _HASH_ID_RE = re.compile(r"^[a-f0-9]{16}$")
-
-# H3: monotonic counter — incremented on every watchlist mutation
-_watchlist_revision_iter = itertools.count(1)
-_watchlist_revision: int = 0
-
-
-def _next_watchlist_revision() -> int:
-    global _watchlist_revision
-    _watchlist_revision = next(_watchlist_revision_iter)
-    return _watchlist_revision
 
 
 def _validate_hash_id(hash_id: str):
@@ -350,7 +340,7 @@ def pipeline_status():
         "ttl_remaining_s": ttl_remaining_s,
         "ttl_extended": bool(d.get("ttl_extended")),
         "cancel_reason": d.get("cancel_reason"),
-        "watchlist_revision": _watchlist_revision,
+        "watchlist_revision": current_revision(),
         "top_3_matches": top3_matches,
         "source_health": source_health,
     })
@@ -370,7 +360,7 @@ def watchlist_get():
     except Exception:
         log.exception("watchlist_get.error")
         return jsonify({"error": {"code": "WATCHLIST_READ_ERROR", "message": "Failed to read watchlist", "details": []}}), 500
-    return jsonify_ok({"watchlist": current}), 200
+    return jsonify_ok({"watchlist": current, "revision": current_revision()}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -391,7 +381,7 @@ def watchlist_add():
         log.exception("watchlist_add.error", company=company)
         return jsonify({"error": {"code": "WATCHLIST_WRITE_ERROR", "message": str(exc), "details": []}}), 500
 
-    return jsonify_ok({"watchlist": updated, "revision": _next_watchlist_revision()}), 200
+    return jsonify_ok({"watchlist": updated, "revision": next_revision()}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -416,7 +406,7 @@ def watchlist_remove(company: str):
         log.exception("watchlist_remove.write_error", company=company)
         return jsonify({"error": {"code": "WATCHLIST_WRITE_ERROR", "message": str(exc), "details": []}}), 500
 
-    return jsonify_ok({"watchlist": updated, "revision": _next_watchlist_revision()}), 200
+    return jsonify_ok({"watchlist": updated, "revision": next_revision()}), 200
 
 
 # ---------------------------------------------------------------------------
