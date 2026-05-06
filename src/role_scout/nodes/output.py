@@ -173,7 +173,7 @@ def _run_approved_path(
         status="completed",
         completed_at=datetime.now(UTC),
         total_qualified=len(qualified),
-        total_new=len(qualified),
+        total_new=int(state.get("new_jobs_count", len(qualified))),
         input_tokens=total_input,
         output_tokens=total_output,
         estimated_cost_usd=total_cost_usd,

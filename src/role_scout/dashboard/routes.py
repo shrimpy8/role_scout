@@ -5,6 +5,7 @@ All write routes require CSRF token (Flask-WTF).
 """
 from __future__ import annotations
 
+import itertools
 import json
 import uuid
 from datetime import UTC, datetime
@@ -12,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from flask import Blueprint, jsonify, request, send_from_directory
+from flask import Blueprint, g, jsonify, request, send_from_directory
 
 from role_scout.config import Settings
 from role_scout.dal import watchlist_dal
@@ -28,6 +29,24 @@ _MAX_COMPANY_NAME_LENGTH = 100
 _VALID_STATUSES = {"new", "reviewed", "applied", "rejected"}
 _VALID_SORT_COLS = {"match_pct", "company", "title", "city", "work_model", "company_stage", "status", "scored_at"}
 _VALID_DIRS = {"asc", "desc"}
+
+# H3: monotonic counter — incremented on every watchlist mutation
+_watchlist_revision_iter = itertools.count(1)
+_watchlist_revision: int = 0
+
+
+def _next_watchlist_revision() -> int:
+    global _watchlist_revision
+    _watchlist_revision = next(_watchlist_revision_iter)
+    return _watchlist_revision
+
+
+def jsonify_ok(data: dict[str, Any], **meta: Any):
+    """Wrap data in the standard {data, meta} API response envelope (API-SPEC §1.5)."""
+    return jsonify({
+        "data": data,
+        "meta": {"request_id": getattr(g, "request_id", None), **meta},
+    })
 
 bp = Blueprint("role_scout", __name__, url_prefix="")
 
@@ -124,7 +143,7 @@ def status_update(hash_id: str):
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Job not found", "details": []}}), 404
 
     log.info("status_update.ok", hash_id=hash_id, old_status=old_status, new_status=new_status)
-    return jsonify({"data": {"hash_id": hash_id, "status": new_status, "updated": True}}), 200
+    return jsonify_ok({"hash_id": hash_id, "status": new_status, "updated": True}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +179,12 @@ def alignment_run(hash_id: str):
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Job not found", "details": []}}), 404
 
     if not force and job.jd_alignment:
-        return jsonify({"data": {"hash_id": hash_id, "jd_alignment": job.jd_alignment, "cached": True}}), 200
+        try:
+            parsed_cached = json.loads(job.jd_alignment)
+        except (json.JSONDecodeError, TypeError):
+            log.warning("alignment_route.cached_corrupt", hash_id=hash_id, raw=job.jd_alignment[:200])
+            parsed_cached = {}
+        return jsonify_ok({"hash_id": hash_id, "cached": True, **parsed_cached}), 200
 
     if not job.description:
         return jsonify({"error": {"code": "NO_DESCRIPTION", "message": "No job description available to analyze", "details": []}}), 422
@@ -226,7 +250,8 @@ def alignment_run(hash_id: str):
         # Return result even if cache write fails
 
     log.info("alignment_run.ok", hash_id=hash_id)
-    return jsonify({"data": {"hash_id": hash_id, "jd_alignment": alignment_json, "cached": False}}), 200
+    parsed_result = json.loads(alignment_json)
+    return jsonify_ok({"hash_id": hash_id, "cached": False, **parsed_result}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -294,8 +319,6 @@ def pipeline_status():
         except Exception:
             pass
 
-    watchlist = watchlist_dal.get_watchlist()
-
     top3_matches = [
         {"title": r["title"], "company": r["company"], "match_pct": r["match_pct"]}
         for r in top3_rows
@@ -309,7 +332,7 @@ def pipeline_status():
                 if entry is not None:
                     source_health.append({"name": name, **entry})
         except (json.JSONDecodeError, AttributeError):
-            pass
+            log.warning("pipeline_status.source_health_parse_failed", raw=d["source_health_json"][:200])
 
     resp = jsonify({
         "run_id": d["run_id"],
@@ -319,7 +342,7 @@ def pipeline_status():
         "ttl_remaining_s": ttl_remaining_s,
         "ttl_extended": bool(d.get("ttl_extended")),
         "cancel_reason": d.get("cancel_reason"),
-        "watchlist_revision": len(watchlist),
+        "watchlist_revision": _watchlist_revision,
         "top_3_matches": top3_matches,
         "source_health": source_health,
     })
@@ -339,7 +362,7 @@ def watchlist_get():
     except Exception:
         log.exception("watchlist_get.error")
         return jsonify({"error": {"code": "WATCHLIST_READ_ERROR", "message": "Failed to read watchlist", "details": []}}), 500
-    return jsonify({"watchlist": current}), 200
+    return jsonify_ok({"watchlist": current}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -360,7 +383,7 @@ def watchlist_add():
         log.exception("watchlist_add.error", company=company)
         return jsonify({"error": {"code": "WATCHLIST_WRITE_ERROR", "message": str(exc), "details": []}}), 500
 
-    return jsonify({"watchlist": updated, "revision": len(updated)}), 200
+    return jsonify_ok({"watchlist": updated, "revision": _next_watchlist_revision()}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -376,7 +399,7 @@ def watchlist_remove(company: str):
         log.exception("watchlist_remove.error", company=company)
         return jsonify({"error": {"code": "WATCHLIST_WRITE_ERROR", "message": str(exc), "details": []}}), 500
 
-    return jsonify({"watchlist": updated, "revision": len(updated)}), 200
+    return jsonify_ok({"watchlist": updated, "revision": _next_watchlist_revision()}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -432,7 +455,7 @@ def pipeline_resume():
     if not resolved:
         log.info("pipeline_resume.signaled_via_file", run_id=run_id)
 
-    return jsonify({"status": "resumed", "run_id": run_id, "approved": approved}), 200
+    return jsonify_ok({"status": "resumed", "run_id": run_id, "approved": approved}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -459,7 +482,7 @@ def pipeline_extend():
             (row["run_id"],),
         )
         conn.commit()
-        return jsonify({"status": "extended", "run_id": row["run_id"], "extended_by_seconds": settings.TTL_EXTENSION_SECONDS}), 200
+        return jsonify_ok({"status": "extended", "run_id": row["run_id"], "extended_by_seconds": settings.TTL_EXTENSION_SECONDS}), 200
 
 
 # ---------------------------------------------------------------------------

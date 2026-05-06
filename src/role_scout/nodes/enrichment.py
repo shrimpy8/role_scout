@@ -15,21 +15,23 @@ log = structlog.get_logger()
 _MIN_DESCRIPTION_LENGTH = 200
 
 
-async def _enrich_concurrently(jobs: list[NormalizedJob]) -> None:
+async def _enrich_concurrently(jobs: list[NormalizedJob]) -> list[str]:
     """Fetch full JD text for each job concurrently via asyncio.to_thread.
 
     enrich_descriptions([job]) is called once per job — each call is an independent
     HTTP fetch so concurrent execution is safe and significantly faster than serial.
+
+    Returns a list of error strings for failed jobs (empty if all succeeded).
     """
     tasks = [asyncio.to_thread(enrich_descriptions, [job]) for job in jobs]
     results = await asyncio.gather(*tasks, return_exceptions=True)
+    failed: list[str] = []
     for i, result in enumerate(results):
         if isinstance(result, Exception):
-            log.warning(
-                "enrich_job_failed",
-                hash_id=getattr(jobs[i], "hash_id", "unknown"),
-                error=str(result),
-            )
+            hash_id = getattr(jobs[i], "hash_id", "unknown")
+            log.warning("enrich_job_failed", hash_id=hash_id, error=str(result))
+            failed.append(f"enrich_failed:{hash_id}")
+    return failed
 
 
 def enrichment_node(state: JobSearchState) -> dict[str, Any]:
@@ -49,23 +51,31 @@ def enrichment_node(state: JobSearchState) -> dict[str, Any]:
 
     bound_log.info("enrichment_started", job_count=len(new_jobs))
 
+    enrich_errors: list[str] = []
     if new_jobs:
-        asyncio.run(_enrich_concurrently(new_jobs))
+        enrich_errors = asyncio.run(_enrich_concurrently(new_jobs))
+
+    failed_count = len(enrich_errors)
+    errors.extend(enrich_errors)
 
     enriched_count = sum(
         1 for j in new_jobs if j.description and len(j.description) > _MIN_DESCRIPTION_LENGTH
     )
-    bound_log.info("enrichment_complete", total=len(new_jobs), enriched=enriched_count)
+    bound_log.info(
+        "enrichment_complete",
+        total=len(new_jobs),
+        enriched=enriched_count,
+        failed=failed_count,
+    )
 
     state_update: dict[str, Any] = {
         "enriched_jobs": new_jobs,
         "raw_by_source": {},
         "normalized_jobs": [],
         "new_jobs": [],
+        "enrichment_failed_count": failed_count,
+        "errors": errors,
     }
-
-    if errors:
-        state_update["errors"] = errors
 
     assert_state_size({**state, **state_update})
     return state_update

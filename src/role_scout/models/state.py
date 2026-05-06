@@ -33,11 +33,13 @@ class JobSearchState(TypedDict, total=False):
     raw_by_source: dict[SourceName, list[dict]]  # type: ignore[type-arg]
     normalized_jobs: list[NormalizedJob]
     new_jobs: list[NormalizedJob]
+    new_jobs_count: int  # snapshot of len(new_jobs) before enrichment clears it
     source_counts: dict[SourceName, int]
     source_health: dict[SourceName, SourceHealthEntry]
 
     # Enrichment — trimmed to [] after scoring_node
     enriched_jobs: list[NormalizedJob]
+    enrichment_failed_count: int
 
     # Scoring + reflection
     watchlist_hits: dict[str, int]

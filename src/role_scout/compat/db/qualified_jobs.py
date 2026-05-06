@@ -140,7 +140,7 @@ def get_job_by_hash_id(conn: sqlite3.Connection, hash_id: str) -> ScoredJob | No
 
 
 def update_jd_alignment(conn: sqlite3.Connection, hash_id: str, alignment: str) -> None:
-    """Persist on-demand alignment analysis text for a job."""
+    """Persist on-demand alignment analysis text for a job. Caller must commit."""
     conn.execute(
         "UPDATE qualified_jobs SET jd_alignment = ? WHERE hash_id = ?",
         (alignment, hash_id),

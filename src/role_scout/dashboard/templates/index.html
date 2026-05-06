@@ -425,12 +425,9 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-window.RS_CONFIG = {
-  threshold: {{ threshold }},
-  csrfToken: document.querySelector('meta[name="csrf-token"]').content,
-  totalJobs: {{ total_counts.get('new', 0) + total_counts.get('reviewed', 0) + total_counts.get('applied', 0) + total_counts.get('rejected', 0) }},
-  watchlist: {{ watchlist_initial | tojson }},
-};
-</script>
+<div id="rs-page-config" hidden
+     data-threshold="{{ threshold }}"
+     data-total-jobs="{{ total_counts.get('new', 0) + total_counts.get('reviewed', 0) + total_counts.get('applied', 0) + total_counts.get('rejected', 0) }}"
+     data-watchlist="{{ watchlist_initial | tojson }}"></div>
+<script src="{{ url_for('static', filename='js/init.js') }}"></script>
 {% endblock %}
