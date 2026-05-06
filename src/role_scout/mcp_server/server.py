@@ -53,6 +53,7 @@ from role_scout.mcp_server.schemas import (
     UpdateJobStatusInput,
     UpdateJobStatusOutput,
 )
+from role_scout.watchlist_state import current_revision, next_revision
 
 log = structlog.get_logger()
 
@@ -288,13 +289,16 @@ async def _run_pipeline(arguments: dict[str, Any], settings: Settings) -> CallTo
     from role_scout.runner import run_graph
 
     t0 = time.monotonic()
-    # Run in thread to avoid blocking the MCP event loop
-    state = await asyncio.to_thread(
-        run_graph,
-        trigger_type="mcp",
-        auto_approve=True,
-        dry_run=inp.dry_run,
-    )
+    try:
+        state = await asyncio.to_thread(
+            run_graph,
+            trigger_type="mcp",
+            auto_approve=True,
+            dry_run=inp.dry_run,
+        )
+    except Exception as exc:
+        log.exception("run_pipeline_failed")
+        return _err("INTERNAL_ERROR", f"Pipeline failed: {exc}")
     duration_s = round(time.monotonic() - t0, 2)
 
     health_raw: dict = state.get("source_health", {})
@@ -514,20 +518,14 @@ def _tool_update_job_status(arguments: dict[str, Any], settings: Settings) -> Ca
     try:
         jobs_dal.set_job_status(conn, inp.hash_id, inp.status)
     except ValueError as exc:
-        conn.close()
         return _err("INVALID_STATUS", str(exc))
     except KeyError:
-        conn.close()
         return _err("JOB_NOT_FOUND", f"No job found with hash_id={inp.hash_id!r}")
     except Exception as exc:
-        conn.close()
         log.exception("update_job_status_failed", hash_id=inp.hash_id)
         return _err("DB_ERROR", str(exc))
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        conn.close()
 
     return _ok(UpdateJobStatusOutput(ok=True, hash_id=inp.hash_id, status=inp.status))
 
@@ -544,6 +542,7 @@ def _tool_get_run_history(arguments: dict[str, Any], settings: Settings) -> Call
     finally:
         conn.close()
 
+    # rows are fully materialized Pydantic objects; safe to access after conn.close()
     entries = [
         RunLogEntry(
             run_id=r.run_id,
@@ -577,7 +576,7 @@ def _tool_get_run_history(arguments: dict[str, Any], settings: Settings) -> Call
 
 def _tool_get_watchlist() -> CallToolResult:
     companies = watchlist_dal.get_watchlist()
-    return _ok(GetWatchlistOutput(watchlist=companies, revision=len(companies)))
+    return _ok(GetWatchlistOutput(watchlist=companies, revision=current_revision()))
 
 
 def _tool_manage_watchlist(arguments: dict[str, Any]) -> CallToolResult:
@@ -601,7 +600,7 @@ def _tool_manage_watchlist(arguments: dict[str, Any]) -> CallToolResult:
         action=inp.action,
         company=inp.company,
         watchlist=updated,
-        revision=len(updated),
+        revision=next_revision(),
     ))
 
 
