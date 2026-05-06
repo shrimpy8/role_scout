@@ -106,17 +106,17 @@ flowchart TB
            │ stdio MCP
            ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
-│  role_scout/                                                              │
+│  role_scout/                                                             │
 │  ┌────────────────┐     ┌──────────────────────────────────────────────┐ │
-│  │ MCP Server     │     │  LangGraph Workflow (MemorySaver)             │ │
-│  │  9 tools       │◄───►│                                                │ │
-│  └────────────────┘     │  preflight → discovery → enrichment            │ │
-│                         │       (asyncio.gather 3 sources / per-job)     │ │
-│                         │          ↓                                     │ │
-│                         │       scoring → reflection → review            │ │
-│                         │                              (interrupt())    │ │
-│                         │          ┌─ approved → output → END            │ │
-│                         │          └─ cancelled/TTL → END                │ │
+│  │ MCP Server     │     │  LangGraph Workflow (MemorySaver)            │ │
+│  │  9 tools       │◄───►│                                              │ │
+│  └────────────────┘     │  preflight → discovery → enrichment          │ │
+│                         │       (asyncio.gather 3 sources / per-job)   │ │
+│                         │          ↓                                   │ │
+│                         │       scoring → reflection → review          │ │
+│                         │                              (interrupt())   │ │
+│                         │          ┌─ approved → output → END          │ │
+│                         │          └─ cancelled/TTL → END              │ │
 │                         └──────────────────────────────────────────────┘ │
 │  ┌────────────────┐     ┌──────────────────┐                             │
 │  │ resume_tailor  │     │ eval/            │                             │
