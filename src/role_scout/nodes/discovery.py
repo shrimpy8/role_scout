@@ -215,6 +215,7 @@ def discovery_node(state: JobSearchState) -> dict[str, Any]:
         "raw_by_source": raw_by_source,
         "normalized_jobs": all_normalized,
         "new_jobs": new_jobs,
+        "new_jobs_count": len(new_jobs),
         "source_counts": source_counts,
         "source_health": source_health,
         "errors": errors,

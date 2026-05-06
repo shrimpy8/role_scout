@@ -155,10 +155,7 @@
 </div>
 {% endblock %}
 {% block scripts %}
-<script>
-window.RS_CONFIG = {
-  threshold: {{ threshold }},
-  csrfToken: document.querySelector('meta[name="csrf-token"]').content
-};
-</script>
+<div id="rs-page-config" hidden
+     data-threshold="{{ threshold }}"></div>
+<script src="{{ url_for('static', filename='js/init.js') }}"></script>
 {% endblock %}
