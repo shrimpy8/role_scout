@@ -54,6 +54,7 @@
     </div>
     <input type="range" id="threshold-slider" style="width:100%"
            min="0" max="100" value="{{ threshold }}"
+           aria-label="Minimum match percentage threshold"
            aria-valuenow="{{ threshold }}" aria-valuemin="0" aria-valuemax="100">
     <div style="font-size:11px;color:var(--text-faint);margin-top:2px" id="threshold-count"></div>
   </div>
@@ -74,7 +75,7 @@
     <div class="input-group input-group-sm">
       <input type="text" id="watchlist-input" class="form-control" style="font-size:12px"
              placeholder="Add company…" maxlength="100" aria-label="Company name">
-      <button id="watchlist-add-btn" class="btn btn-outline-secondary btn-sm" type="button">+</button>
+      <button id="watchlist-add-btn" class="btn btn-outline-secondary btn-sm" type="button" aria-label="Add company to watchlist">+</button>
     </div>
     <div id="watchlist-error" style="font-size:11px;color:var(--red);margin-top:3px" hidden></div>
   </div>
@@ -348,7 +349,7 @@
                 {% if job.description %}
                   <button class="alignment-btn ms-2"
                           data-hash-id="{{ job.hash_id }}"
-                          aria-label="Run JD alignment analysis">
+                          aria-label="{{ '↻ Re-run' if job.jd_alignment_parsed else '▶ Run' }} JD alignment for {{ job.title }} at {{ job.company }}">
                     {{ '↻ Re-run' if job.jd_alignment_parsed else '▶ Run' }}
                   </button>
                 {% endif %}

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import re
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -30,6 +31,8 @@ _VALID_STATUSES = {"new", "reviewed", "applied", "rejected"}
 _VALID_SORT_COLS = {"match_pct", "company", "title", "city", "work_model", "company_stage", "status", "scored_at"}
 _VALID_DIRS = {"asc", "desc"}
 
+_HASH_ID_RE = re.compile(r"^[a-f0-9]{16}$")
+
 # H3: monotonic counter — incremented on every watchlist mutation
 _watchlist_revision_iter = itertools.count(1)
 _watchlist_revision: int = 0
@@ -39,6 +42,13 @@ def _next_watchlist_revision() -> int:
     global _watchlist_revision
     _watchlist_revision = next(_watchlist_revision_iter)
     return _watchlist_revision
+
+
+def _validate_hash_id(hash_id: str):
+    """Return None if valid, or a (response, status_code) tuple if invalid."""
+    if not _HASH_ID_RE.match(hash_id):
+        return jsonify({"error": {"code": "VALIDATION_ERROR", "message": "hash_id must be 16 hex chars", "details": []}}), 422
+    return None
 
 
 def jsonify_ok(data: dict[str, Any], **meta: Any):
@@ -68,12 +78,11 @@ def tailor_route(hash_id: str):
     Returns 422 VALIDATION_ERROR for bad hash_id format.
     Returns 500 CLAUDE_API_ERROR on upstream failures.
     """
-    import re
+    err = _validate_hash_id(hash_id)
+    if err:
+        return err
     corr_id = str(uuid.uuid4())
     bound_log = log.bind(correlation_id=corr_id, hash_id=hash_id)
-
-    if not re.match(r"^[a-f0-9]{16}$", hash_id):
-        return jsonify({"error": {"code": "VALIDATION_ERROR", "message": "hash_id must be 16 hex chars", "details": []}}), 422
 
     body = request.get_json(silent=True) or {}
     force = bool(body.get("force", False))
@@ -120,9 +129,9 @@ def status_update(hash_id: str):
     Returns 200 + {hash_id, status, updated} on success.
     Returns 400 on invalid status, 404 if job not found.
     """
-    import re
-    if not re.match(r"^[a-f0-9]{16}$", hash_id):
-        return jsonify({"error": {"code": "VALIDATION_ERROR", "message": "hash_id must be 16 hex chars", "details": []}}), 422
+    err = _validate_hash_id(hash_id)
+    if err:
+        return err
 
     body = request.get_json(silent=True) or {}
     new_status = body.get("status", "").strip()
@@ -159,12 +168,12 @@ def alignment_run(hash_id: str):
     Returns 404 if job not found, 422 if no description or resume missing.
     Returns 500 on Claude error.
     """
-    import re
     from pathlib import Path as _Path
     from string import Template
 
-    if not re.match(r"^[a-f0-9]{16}$", hash_id):
-        return jsonify({"error": {"code": "VALIDATION_ERROR", "message": "hash_id must be 16 hex chars", "details": []}}), 422
+    err = _validate_hash_id(hash_id)
+    if err:
+        return err
 
     body = request.get_json(silent=True) or {}
     force = bool(body.get("force", False))
@@ -264,13 +273,12 @@ def jd_download(filename: str):
 
     Path traversal protected: rejects '..' and absolute paths.
     """
-    if ".." in filename or filename.startswith("/"):
-        return jsonify({"error": {"code": "INVALID_PATH", "message": "Invalid filename", "details": []}}), 400
-
     settings = Settings()
-    jd_dir = Path(settings.DB_PATH).parent / "jds"
-    file_path = jd_dir / filename
-    if not file_path.exists():
+    jd_dir = (Path(settings.DB_PATH).parent / "jds").resolve()
+    requested = (jd_dir / filename).resolve()
+    if not str(requested).startswith(str(jd_dir) + "/"):
+        return jsonify({"error": {"code": "INVALID_PATH", "message": "Invalid filename", "details": []}}), 400
+    if not requested.exists():
         return jsonify({"error": {"code": "NOT_FOUND", "message": "JD file not found", "details": []}}), 404
 
     return send_from_directory(str(jd_dir), filename, as_attachment=True, mimetype="text/plain")
@@ -392,11 +400,20 @@ def watchlist_add():
 
 @bp.route("/api/watchlist/<company>", methods=["DELETE"])
 def watchlist_remove(company: str):
-    """Remove a company from the watchlist."""
+    """Remove a company from the watchlist. Returns 404 if company is not present."""
+    try:
+        current = watchlist_dal.get_watchlist()
+    except Exception:
+        log.exception("watchlist_remove.read_error", company=company)
+        return jsonify({"error": {"code": "WATCHLIST_READ_ERROR", "message": "Failed to read watchlist", "details": []}}), 500
+
+    if company not in current:
+        return jsonify({"error": {"code": "NOT_FOUND", "message": f"{company!r} is not in the watchlist", "details": []}}), 404
+
     try:
         updated = watchlist_dal.remove_from_watchlist(company)
     except Exception as exc:
-        log.exception("watchlist_remove.error", company=company)
+        log.exception("watchlist_remove.write_error", company=company)
         return jsonify({"error": {"code": "WATCHLIST_WRITE_ERROR", "message": str(exc), "details": []}}), 500
 
     return jsonify_ok({"watchlist": updated, "revision": _next_watchlist_revision()}), 200

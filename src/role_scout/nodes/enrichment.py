@@ -5,14 +5,17 @@ import asyncio
 from typing import Any
 
 import structlog
-from role_scout.compat.models import NormalizedJob
-from role_scout.compat.pipeline.enrich import enrich_descriptions
 
+from role_scout.compat.models import NormalizedJob
+from role_scout.compat.pipeline.enrich import (
+    _MIN_DESCRIPTION_CHARS as _MIN_DESCRIPTION_LENGTH,
+)
+from role_scout.compat.pipeline.enrich import (
+    enrich_descriptions,
+)
 from role_scout.models.state import JobSearchState, assert_state_size
 
 log = structlog.get_logger()
-
-_MIN_DESCRIPTION_LENGTH = 200
 
 
 async def _enrich_concurrently(jobs: list[NormalizedJob]) -> list[str]:

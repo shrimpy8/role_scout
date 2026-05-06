@@ -165,6 +165,11 @@ def reflection_node(state: JobSearchState) -> dict[str, Any]:
                 error=str(exc),
             )
             errors.append(f"reflection_failed({job.hash_id}): {exc}")
+            # Best-effort: some Anthropic SDK errors expose partial usage on the response object
+            _partial = getattr(getattr(exc, "response", None), "usage", None)
+            if _partial is not None:
+                reflection_in += getattr(_partial, "input_tokens", 0)
+                reflection_out += getattr(_partial, "output_tokens", 0)
             continue
 
         call_cost = compute_cost_from_settings(in_tok, out_tok, settings)

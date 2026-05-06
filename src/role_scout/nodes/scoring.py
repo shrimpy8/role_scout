@@ -89,7 +89,8 @@ def scoring_node(state: JobSearchState) -> dict[str, Any]:
     # use a conservative per-job estimate until Phase 2 scorer replaces this).
     # ~8k input + ~500 output per 10-job batch.
     n_batches = max(1, (len(enriched_jobs) + 9) // 10)
-    est_input = n_batches * _BATCH_TOKEN_ESTIMATE
+    # 1.5× safety multiplier: Phase 1 scorer prompts are longer than baseline estimate
+    est_input = int(n_batches * _BATCH_TOKEN_ESTIMATE * 1.5)
     est_output = n_batches * _TOKENS_PER_JOB_ESTIMATE
 
     new_input_total = accumulated_input + est_input
