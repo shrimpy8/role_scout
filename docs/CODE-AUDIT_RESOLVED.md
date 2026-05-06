@@ -1,6 +1,6 @@
 # CODE-AUDIT — Resolution Summary
 
-All issues from `docs/CODE-AUDIT.md` resolved across 3 PRs (2026-05-06).
+All issues from `docs/CODE-AUDIT.md` resolved across 4 PRs (2026-05-06).
 Linear project: [Role Scout Phase 2](https://linear.app/hh2025/project/role-scout-phase-2-1f8c0597a6fa/overview)
 
 ---
@@ -57,16 +57,34 @@ Linear project: [Role Scout Phase 2](https://linear.app/hh2025/project/role-scou
 
 ---
 
+## PR 4 — §8 Addendum: Residual Findings
+**Branch:** `fix/addendum-a1-a5` · **Linear:** HH2-840 – HH2-844
+
+Five residual issues discovered after the initial 3-PR audit pass, where a prior fix was incomplete or a related problem in a sibling module was missed.
+
+| ID | Severity | Issue | File(s) | Resolution |
+|----|----------|-------|---------|------------|
+| A1 | Medium | Double `conn.close()` in `_tool_update_job_status` (M11 was only applied to `tailor_resume`) | `mcp_server/server.py` | Removed `conn.close()` from each except branch; plain `conn.close()` in `finally` only. |
+| A2 | Medium | MCP watchlist revision used `len(companies)` instead of monotonic counter (H3 only fixed dashboard) | `mcp_server/server.py`, `dashboard/routes.py` | Extracted `src/role_scout/watchlist_state.py` with `next_revision()` / `current_revision()`; both callers import from it — single shared sequence. |
+| A3 | Medium | `_run_pipeline` propagated raw `run_graph` exception with no structured error response | `mcp_server/server.py` | Wrapped `asyncio.to_thread(run_graph, ...)` in `try/except`; returns `_err("INTERNAL_ERROR", ...)` on failure. |
+| A4 | Low | Post-`conn.close()` row access in `get_run_history` was undocumented (safe, but not obvious) | `mcp_server/server.py` | Added comment: rows are fully materialized Pydantic objects before `conn.close()` is called. |
+| A5 | Low | `GET /api/watchlist` response missing `revision` field (POST and DELETE already included it) | `dashboard/routes.py` | Added `revision: current_revision()` to the GET response envelope. |
+
+**Tests:** 14 new assertions in `tests/unit/test_addendum_fixes.py` — verifies `conn.close()` call count for all code paths (success, ValueError, KeyError, RuntimeError), monotonic counter behaviour, `next_revision` vs `current_revision` MCP dispatch, pipeline `INTERNAL_ERROR` shape, and watchlist GET revision field.
+
+---
+
 ## Coverage After Fixes
 
 | Metric | Before | After |
 |--------|--------|-------|
-| Unit tests passing | ~174 | 212 |
-| New test files | 0 | 4 |
-| Open audit issues | 26 | 0 |
+| Unit tests passing | ~174 | 226 |
+| New test files | 0 | 5 |
+| Open audit issues | 31 | 0 |
 | Critical issues open | 5 | 0 |
 | High issues open | 10 | 0 |
 | Medium issues open | 12 | 0 |
+| Addendum issues open | 5 | 0 |
 
 ---
 
