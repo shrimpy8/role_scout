@@ -177,7 +177,15 @@ def discovery_node(state: JobSearchState) -> dict[str, Any]:
     except Exception as exc:
         bound_log.exception("dedup_failed")
         errors.append(f"dedup_failed: {exc}")
-        new_jobs = all_normalized
+        return {
+            "cancel_reason": "dedup_failed",
+            "errors": errors,
+            "normalized_jobs": all_normalized,
+            "new_jobs": [],
+            "source_counts": {},
+            "source_health": source_health,
+            "raw_by_source": raw_by_source,
+        }
 
     # Update after_dedup counts per source in health entries
     after_dedup_by_source: dict[str, int] = {}

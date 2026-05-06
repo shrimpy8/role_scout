@@ -33,18 +33,21 @@ _AUTO_APPROVE_TRIGGERS: frozenset[str] = frozenset({"mcp", "scheduled"})
 
 # Maps run_id → Queue used by Flask route to signal HiTL decision
 _pending_decisions: dict[str, _queue_module.Queue[str]] = {}
+_pending_decisions_lock = threading.Lock()
 
 
 def register_pending(run_id: str, q: _queue_module.Queue[str]) -> None:
     """Register a pending HiTL decision queue (called by run_graph before waiting)."""
-    _pending_decisions[run_id] = q
+    with _pending_decisions_lock:
+        _pending_decisions[run_id] = q
 
 
 def resolve_pending(run_id: str, decision: str) -> bool:
     """Signal a decision from Flask route. Returns True if a pending run was found."""
     # Write signal file for cross-process communication (Flask + pipeline are separate processes)
     _signal_file_path(run_id).write_text(decision)
-    q = _pending_decisions.pop(run_id, None)
+    with _pending_decisions_lock:
+        q = _pending_decisions.pop(run_id, None)
     if q is None:
         return False
     q.put(decision)
