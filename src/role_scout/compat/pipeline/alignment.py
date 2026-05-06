@@ -14,6 +14,7 @@ logger = get_logger(__name__)
 
 _MAX_TOKENS = 2048
 _TIMEOUT = 60.0
+_MAX_RESPONSE_CHARS = 8_000  # ~4× expected output; guards against runaway responses
 
 # Path relative to this file: compat/pipeline/alignment.py → role_scout/prompts/alignment_system.md
 _ALIGNMENT_PROMPT_PATH = Path(__file__).parent.parent.parent / "prompts" / "alignment_system.md"
@@ -82,6 +83,9 @@ def run_alignment(job: ScoredJob) -> str:
         raise json.JSONDecodeError("Claude returned no text content", "", 0)
 
     raw = text_blocks[0].text.strip()
+    if len(raw) > _MAX_RESPONSE_CHARS:
+        logger.warning("alignment_response_oversized", hash_id=job.hash_id, size=len(raw))
+        raw = raw[:_MAX_RESPONSE_CHARS]
 
     start, end = raw.find("{"), raw.rfind("}")
     if start == -1 or end == -1:
