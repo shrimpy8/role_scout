@@ -55,6 +55,12 @@ docs/EVAL-GUIDE.md
 docs/SESSION-HANDOVER.md
 docs/MANUAL_TESTING.md
 
+# Audit docs and issue tracking (local only)
+docs/CODE-AUDIT.md
+docs/archive/
+docs/archive2/
+issues/
+
 # Personal / candidate-specific data (never commit real resume or preferences)
 config/resume_summary.md
 config/candidate_profile.yaml
