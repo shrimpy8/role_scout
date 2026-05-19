@@ -77,9 +77,11 @@ Role Scout is a single self-contained repository. Phase 1 (the linear fetch-norm
 
 ![Role Detail — JD Alignment & Resume Tailor](screenshots/RoleDetails_JDAlignment_ResumeTailor.png)
 - Inline status updates — dropdown per row; changes persist immediately to the DB without a page reload
+- JD download button (↓) per row: downloads the full job description as a plain-text file (served from DB; no separate file required)
 - JD alignment panel: one-click Claude analysis of strong matches, reframing opportunities, and genuine gaps vs. your resume; cached in the DB per job
 - Work model pills (Remote / Hybrid / On-site) and stage pills (Seed / Series A–D / Public / Acquired)
 - Watchlist panel: add companies to highlight matching rows with a ★ star (case-insensitive, persists across runs)
+- Do-not-apply panel: block companies from appearing in future discovery results (filtered at the pipeline level before scoring)
 - HiTL review banner with TTL countdown and +2h extend button
 - Per-run cost warning when a run exceeds $2
 - Run history strip: last 5 pipeline runs with source-health chips and job counts (fetched / new / qualified)
@@ -329,7 +331,7 @@ role_scout/
 │   │   ├── __init__.py     # create_app(), security headers
 │   │   ├── routes.py       # API + page routes
 │   │   ├── templates/      # base.html, index.html, basic.html, debug_runs.html
-│   │   └── static/js/      # banner.js, threshold.js, watchlist.js, main.js, status.js, alignment.js, tailor.js
+│   │   └── static/js/      # banner.js, threshold.js, watchlist.js, donotapply.js, main.js, status.js, alignment.js, tailor.js
 │   ├── nodes/              # LangGraph node implementations
 │   │   ├── preflight.py    # Source validation + circuit breaker
 │   │   ├── discovery.py    # Multi-source job fetching
@@ -403,7 +405,7 @@ uv audit
 ## Security notes
 
 - The dashboard binds to `127.0.0.1` — it is not reachable from other machines on your network
-- All write routes (`/api/tailor`, `/api/pipeline/resume`, `/api/pipeline/extend`, `/api/watchlist`, `/api/status/<hash_id>`, `/api/alignment/<hash_id>`) require a CSRF token
+- All write routes (`/api/tailor`, `/api/pipeline/resume`, `/api/pipeline/extend`, `/api/watchlist`, `/api/donotapply`, `/api/status/<hash_id>`, `/api/alignment/<hash_id>`) require a CSRF token
 - User-supplied values rendered in the browser are HTML-escaped in templates and in all JavaScript DOM writes
 - Security headers are set on every response: `Content-Security-Policy`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`
 - `.env` is gitignored; never commit API keys

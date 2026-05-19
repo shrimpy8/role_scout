@@ -126,3 +126,48 @@ class TestWatchlistDeleteNotFound:
                 resp = client.delete("/api/watchlist/Acme Corp")
         # May fail due to path scoping in test, but we verify the code path exists
         assert resp.status_code in (200, 404)
+
+
+# ---------------------------------------------------------------------------
+# JD download — description fallback (jd_filename never populated by pipeline)
+# ---------------------------------------------------------------------------
+
+class TestJdDownload:
+    _VALID_HASH = "a" * 16
+    _JD_LOOKUP = "role_scout.compat.db.qualified_jobs.get_job_by_hash_id"
+
+    def _make_job(self, description: str | None, url: str | None = None, jd_filename: str | None = None) -> MagicMock:
+        job = MagicMock()
+        job.description = description
+        job.url = url
+        job.jd_filename = jd_filename
+        job.company = "Acme Corp"
+        job.title = "Software Engineer"
+        return job
+
+    def test_downloads_from_description_when_no_jd_file(self, client):
+        job = self._make_job("Full job description text here.")
+        with patch(self._JD_LOOKUP, return_value=job):
+            resp = client.get(f"/api/jd/download/{self._VALID_HASH}")
+        assert resp.status_code == 200
+        assert b"Full job description text here." in resp.data
+        assert "attachment" in resp.headers.get("Content-Disposition", "")
+
+    def test_includes_url_header_when_present(self, client):
+        job = self._make_job("JD text.", url="https://example.com/job")
+        with patch(self._JD_LOOKUP, return_value=job):
+            resp = client.get(f"/api/jd/download/{self._VALID_HASH}")
+        assert resp.status_code == 200
+        assert b"https://example.com/job" in resp.data
+
+    def test_404_when_no_description_and_no_file(self, client):
+        job = self._make_job(None)
+        with patch(self._JD_LOOKUP, return_value=job):
+            resp = client.get(f"/api/jd/download/{self._VALID_HASH}")
+        assert resp.status_code == 404
+        assert resp.get_json()["error"]["code"] == "NOT_FOUND"
+
+    def test_404_for_unknown_hash(self, client):
+        with patch(self._JD_LOOKUP, return_value=None):
+            resp = client.get(f"/api/jd/download/{self._VALID_HASH}")
+        assert resp.status_code == 404

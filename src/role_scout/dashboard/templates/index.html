@@ -80,6 +80,28 @@
     <div id="watchlist-error" style="font-size:11px;color:var(--red);margin-top:3px" hidden></div>
   </div>
 
+  <div class="sb-divider"></div>
+
+  <!-- Do Not Apply -->
+  <div class="sb-section">
+    <div class="sb-label" style="color:var(--red)">Do Not Apply</div>
+  </div>
+  <div style="padding: 0 12px 4px">
+    <div style="font-size:11px;color:var(--text-faint);margin-bottom:6px">Companies excluded from all pipeline runs.</div>
+    <div id="donotapply-list">
+      <div style="font-size:12px;color:var(--text-faint)">No excluded companies yet.</div>
+    </div>
+  </div>
+  <div class="sb-watchlist-input">
+    <label for="donotapply-input" class="visually-hidden">Company name</label>
+    <div class="input-group input-group-sm">
+      <input type="text" id="donotapply-input" class="form-control" style="font-size:12px"
+             placeholder="Exclude company…" maxlength="100" aria-label="Company name">
+      <button id="donotapply-add-btn" class="btn btn-outline-danger btn-sm" type="button" aria-label="Add company to do-not-apply list">+</button>
+    </div>
+    <div id="donotapply-error" style="font-size:11px;color:var(--red);margin-top:3px" hidden></div>
+  </div>
+
 </nav>
 {% endblock %}
 
@@ -170,10 +192,8 @@
         data-hash-id="{{ job.hash_id }}"
         data-match-pct="{{ job.match_pct }}"
         data-company="{{ job.company | lower }}"
-        onclick="rsToggleExpand('{{ job.hash_id }}', event)"
         role="button" tabindex="0"
-        aria-expanded="false"
-        onkeydown="if(event.key==='Enter'){rsToggleExpand('{{ job.hash_id }}', event)}">
+        aria-expanded="false">
       <td>
         <span class="row-chevron">▾</span><span class="match-badge {{ 'high' if job.match_pct >= 90 else 'mid' }}">{{ job.match_pct }}%</span>
       </td>
@@ -184,7 +204,6 @@
       </td>
       <td>
         <a href="{{ job.url }}" target="_blank" rel="noopener noreferrer"
-           onclick="event.stopPropagation()"
            style="color:var(--text-secondary);text-decoration:none">
           {{ job.title }}
         </a>
@@ -222,7 +241,7 @@
           <span style="color:var(--text-ghost)">·</span>
         {% endif %}
       </td>
-      <td onclick="event.stopPropagation()">
+      <td data-no-expand>
         <select class="status-select"
                 data-hash-id="{{ job.hash_id }}"
                 data-previous="{{ job.status }}"
@@ -233,14 +252,14 @@
           <option value="rejected" {% if job.status == 'rejected' %}selected{% endif %}>Rejected</option>
         </select>
       </td>
-      <td onclick="event.stopPropagation()">
-        {% if job.jd_filename %}
-          <a href="/jds/{{ job.jd_filename }}" download class="jd-dl-btn" title="Download JD">↓ JD</a>
+      <td data-no-expand>
+        {% if job.jd_filename or job.description %}
+          <a href="/api/jd/download/{{ job.hash_id }}" class="jd-dl-btn" title="Download JD">&#11015;</a>
         {% else %}
-          <span style="color:var(--text-ghost)">—</span>
+          <span class="jd-dl-btn jd-dl-disabled" title="No JD stored">&#11015;</span>
         {% endif %}
       </td>
-      <td onclick="event.stopPropagation()">
+      <td data-no-expand>
         <a href="{{ job.url }}" target="_blank" rel="noopener noreferrer"
            class="ext-link" title="Open job listing" aria-label="Open {{ job.title }} listing">↗</a>
       </td>
@@ -429,6 +448,7 @@
 <div id="rs-page-config" hidden
      data-threshold="{{ threshold }}"
      data-total-jobs="{{ total_counts.get('new', 0) + total_counts.get('reviewed', 0) + total_counts.get('applied', 0) + total_counts.get('rejected', 0) }}"
-     data-watchlist="{{ watchlist_initial | tojson }}"></div>
+     data-watchlist="{{ watchlist_initial | tojson | e }}"
+     data-donotapply="{{ donotapply_initial | tojson | e }}"></div>
 <script src="{{ url_for('static', filename='js/init.js') }}"></script>
 {% endblock %}

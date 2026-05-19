@@ -88,10 +88,28 @@
   // ── Threshold slider (extracted from threshold.js into main for shared layout) ──
   // threshold.js already handles this — no duplication needed
 
+  // ── Row expand delegation (replaces inline onclick/onkeydown) ───────────
+  function initRowExpand() {
+    document.addEventListener('click', function (event) {
+      if (event.target.closest('td[data-no-expand]')) return;
+      var tr = event.target.closest('tr.job-row[data-hash-id]');
+      if (!tr) return;
+      rsToggleExpand(tr.getAttribute('data-hash-id'), event);
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter') return;
+      if (event.target.closest('td[data-no-expand]')) return;
+      var tr = event.target.closest('tr.job-row[data-hash-id]');
+      if (!tr) return;
+      rsToggleExpand(tr.getAttribute('data-hash-id'), event);
+    });
+  }
+
   // ── Init ─────────────────────────────────────────────────────────────────
   function init() {
     initTheme();
     updateTopbarMeta();
+    initRowExpand();
   }
 
   if (document.readyState === 'loading') {

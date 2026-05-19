@@ -357,11 +357,12 @@
 
     /* ── Action buttons in rows ──────────────────────────────────────── */
     .jd-dl-btn {
-      font-size: 11px; padding: 2px 7px; border-radius: 5px;
+      font-size: 14px; padding: 2px 6px; border-radius: 5px;
       border: 1px solid var(--border); background: var(--bg-surface);
-      color: var(--text-muted); text-decoration: none;
+      color: var(--text-muted); text-decoration: none; cursor: pointer;
     }
     .jd-dl-btn:hover { border-color: var(--border-strong); color: var(--text-primary); }
+    .jd-dl-disabled { opacity: 0.3; cursor: default; pointer-events: none; }
     .ext-link {
       color: var(--text-faint); text-decoration: none; font-size: 14px;
     }
@@ -466,6 +467,7 @@
   <script src="{{ url_for('static', filename='js/banner.js') }}"></script>
   <script src="{{ url_for('static', filename='js/threshold.js') }}"></script>
   <script src="{{ url_for('static', filename='js/watchlist.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/donotapply.js') }}"></script>
   <script src="{{ url_for('static', filename='js/tailor.js') }}"></script>
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   <script src="{{ url_for('static', filename='js/status.js') }}"></script>

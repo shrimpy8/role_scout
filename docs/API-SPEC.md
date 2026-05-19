@@ -9,7 +9,7 @@
 | Status | Approved |
 | Updated | 2026-04-27 |
 
-> Implementation-ready OpenAPI 3.1 contract for the 11 Flask routes in the Phase 2 dashboard. All routes bind to `127.0.0.1` only. All write routes require CSRF.
+> Implementation-ready OpenAPI 3.1 contract for the 15 Flask routes in the Phase 2 dashboard. All routes bind to `127.0.0.1` only. All write routes require CSRF.
 
 ---
 
@@ -30,6 +30,10 @@
 | 9 | POST | `/api/status/{hash_id}` | Inline status update for a job |
 | 10 | POST | `/api/alignment/{hash_id}` | On-demand JD alignment via Claude |
 | 11 | GET | `/jds/{filename}` | Download raw job description file |
+| 12 | GET | `/api/jd/download/{hash_id}` | Download JD for a job (by hash ID) |
+| 13 | GET | `/api/donotapply` | Get current do-not-apply company list |
+| 14 | POST | `/api/donotapply` | Add a company to the do-not-apply list |
+| 15 | DELETE | `/api/donotapply/{company}` | Remove a company from the do-not-apply list |
 
 ### 1.2 Versioning — no `/v1/` prefix
 
@@ -769,6 +773,138 @@ paths:
             - CLAUDE_ERROR — upstream Claude API failure
             - PARSE_ERROR — Claude response could not be parsed as expected JSON
 
+  /api/jd/download/{hash_id}:
+    get:
+      summary: Download JD for a qualified job (by hash ID)
+      description: |
+        Serves the job description as a plain-text file attachment with a
+        friendly filename (`Company_RoleTitle_JD.txt`).
+
+        Content resolution order:
+        1. If a JD file exists on disk (`jd_filename` column is set), serve that.
+        2. Otherwise, serve the `description` field stored in the DB (populated
+           during enrichment — present on every scraped job).
+
+        A URL header (`Job Posting URL: <url>`) is prepended when the job has
+        a URL stored.
+      parameters:
+        - $ref: "#/components/parameters/HashIdPath"
+      responses:
+        "200":
+          description: JD file download
+          content:
+            text/plain:
+              schema: { type: string }
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+              example: 'attachment; filename="Anthropic_Head_of_Product_JD.txt"'
+        "404":
+          description: |
+            Possible error codes:
+            - NOT_FOUND — hash_id does not exist, or job has no description and no file on disk
+        "422":
+          description: |
+            Possible error codes:
+            - VALIDATION_ERROR — hash_id is not a valid 16-char hex string
+
+  /api/donotapply:
+    get:
+      summary: Get the current do-not-apply company list
+      description: |
+        Returns all companies blocked from appearing in discovery results.
+        Matching is case-insensitive at the pipeline level.
+      responses:
+        "200":
+          description: Current do-not-apply list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [donotapply]
+                properties:
+                  donotapply:
+                    type: array
+                    items: { type: string }
+              example:
+                donotapply: ["Amazon", "Meta"]
+        "500":
+          description: |
+            Possible error codes:
+            - DONOTAPPLY_READ_ERROR — failed to read the YAML file
+
+    post:
+      summary: Add a company to the do-not-apply list
+      description: |
+        Idempotent. Adding an existing company returns 200 with the unchanged list.
+        Discovery jobs from this company will be filtered out on the next pipeline run.
+      security: [{ csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [company]
+              properties:
+                company:
+                  type: string
+                  maxLength: 100
+            example: { company: "Amazon" }
+      responses:
+        "200":
+          description: Updated do-not-apply list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [donotapply]
+                properties:
+                  donotapply:
+                    type: array
+                    items: { type: string }
+        "422":
+          description: |
+            Possible error codes:
+            - VALIDATION_ERROR — empty / > 100 chars / contains newline
+        "403": { $ref: "#/components/responses/Error403CSRF" }
+        "500":
+          description: |
+            Possible error codes:
+            - DONOTAPPLY_WRITE_ERROR — atomic rename failed
+
+  /api/donotapply/{company}:
+    delete:
+      summary: Remove a company from the do-not-apply list
+      security: [{ csrf: [] }]
+      parameters:
+        - name: company
+          in: path
+          required: true
+          schema: { type: string }
+          description: Exact company name (case-sensitive match against stored values)
+          example: "Amazon"
+      responses:
+        "200":
+          description: Updated do-not-apply list (with company removed)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  donotapply:
+                    type: array
+                    items: { type: string }
+        "403": { $ref: "#/components/responses/Error403CSRF" }
+        "404":
+          description: |
+            Possible error codes:
+            - NOT_FOUND — company is not in the do-not-apply list
+        "500":
+          description: |
+            Possible error codes:
+            - DONOTAPPLY_WRITE_ERROR
+
   /jds/{filename}:
     get:
       summary: Download a raw job description text file
@@ -823,6 +959,10 @@ All 2xx-supported endpoints may additionally return generic 5xx with `INTERNAL_E
 | `POST /api/status/{hash_id}` | `CSRF_INVALID`, `INVALID_STATUS`, `NOT_FOUND` | `DB_ERROR`, `INTERNAL_ERROR` |
 | `POST /api/alignment/{hash_id}` | `CSRF_INVALID`, `NO_DESCRIPTION`, `NOT_FOUND` | `RESUME_MISSING`, `PROMPT_MISSING`, `CLAUDE_ERROR`, `PARSE_ERROR`, `INTERNAL_ERROR` |
 | `GET /jds/{filename}` | `INVALID_PATH` | `NOT_FOUND`, `INTERNAL_ERROR` |
+| `GET /api/jd/download/{hash_id}` | `VALIDATION_ERROR`, `NOT_FOUND` | `INTERNAL_ERROR` |
+| `GET /api/donotapply` | — | `DONOTAPPLY_READ_ERROR`, `INTERNAL_ERROR` |
+| `POST /api/donotapply` | `CSRF_INVALID`, `VALIDATION_ERROR` | `DONOTAPPLY_WRITE_ERROR`, `INTERNAL_ERROR` |
+| `DELETE /api/donotapply/{company}` | `CSRF_INVALID`, `NOT_FOUND` | `DONOTAPPLY_WRITE_ERROR`, `INTERNAL_ERROR` |
 
 ---
 

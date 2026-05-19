@@ -1,7 +1,6 @@
 """Flask Blueprint for Role Scout Phase 2 dashboard routes."""
 from __future__ import annotations
 
-import os
 import secrets
 
 import structlog
@@ -14,8 +13,16 @@ csrf = CSRFProtect()
 _DEV_SECRET_KEY = "dev-insecure-key"
 
 
-def create_app() -> Flask:
+def create_app(flask_secret_key: str | None = None, log_level: str | None = None) -> Flask:
     """Create and configure the Flask application."""
+    if flask_secret_key is None or log_level is None:
+        from role_scout.config import get_settings
+        _settings = get_settings()
+        if flask_secret_key is None:
+            flask_secret_key = _settings.FLASK_SECRET_KEY
+        if log_level is None:
+            log_level = _settings.LOG_LEVEL
+
     app = Flask(
         __name__,
         template_folder="templates",
@@ -23,9 +30,9 @@ def create_app() -> Flask:
     )
 
     # C5: Enforce SECRET_KEY in non-dev environments
-    secret_key = os.environ.get("FLASK_SECRET_KEY", _DEV_SECRET_KEY)
+    secret_key = flask_secret_key or _DEV_SECRET_KEY
     if secret_key == _DEV_SECRET_KEY:
-        if os.environ.get("LOG_LEVEL", "INFO").upper() != "DEBUG":
+        if log_level.upper() != "DEBUG":
             raise RuntimeError(
                 "FLASK_SECRET_KEY is not set. "
                 "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\" "

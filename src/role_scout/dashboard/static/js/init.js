@@ -6,6 +6,7 @@
     threshold: parseInt(el.getAttribute('data-threshold'), 10) || 70,
     totalJobs: parseInt(el.getAttribute('data-total-jobs'), 10) || 0,
     watchlist: JSON.parse(el.getAttribute('data-watchlist') || '[]'),
+    donotapply: JSON.parse(el.getAttribute('data-donotapply') || '[]'),
     csrfToken: (document.querySelector('meta[name="csrf-token"]') || {}).content || '',
   };
 })();

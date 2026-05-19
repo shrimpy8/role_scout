@@ -11,6 +11,7 @@ from role_scout.compat.models import CandidateProfile, NormalizedJob
 from role_scout.compat.pipeline.dedup import dedup_jobs
 from role_scout.compat.pipeline.normalize import normalize_jobs
 from role_scout.config import Settings
+from role_scout.dal.donotapply_dal import get_excluded_set
 from role_scout.dal.run_log_dal import write_source_health
 from role_scout.db import get_rw_conn
 from role_scout.fetchers.google_wrapper import run_google
@@ -157,6 +158,11 @@ def discovery_node(state: JobSearchState) -> dict[str, Any]:
     if failed_count >= 2 and force_partial:
         bound_log.warning("discovery_partial_forced", failed=failed_count)
 
+    # --- Do-not-apply exclusion list (load once, used at two filter points) ---
+    excluded = get_excluded_set(settings.DONOTAPPLY_PATH)
+    if excluded:
+        bound_log.info("donotapply_loaded", count=len(excluded))
+
     # --- Normalize ---
     all_normalized: list[NormalizedJob] = []
     for p2_src, raw in raw_by_source.items():
@@ -165,6 +171,14 @@ def discovery_node(state: JobSearchState) -> dict[str, Any]:
         p1_src = "google_jobs" if p2_src == "google" else p2_src
         normalized = normalize_jobs(raw, p1_src)
         all_normalized.extend(normalized)
+
+    # Filter 1: drop excluded companies after normalization (before dedup)
+    if excluded:
+        before = len(all_normalized)
+        all_normalized = [j for j in all_normalized if j.company.lower() not in excluded]
+        dropped = before - len(all_normalized)
+        if dropped:
+            bound_log.info("donotapply_filtered_post_normalize", dropped=dropped)
 
     bound_log.info("normalized_total", count=len(all_normalized))
 
@@ -186,6 +200,14 @@ def discovery_node(state: JobSearchState) -> dict[str, Any]:
             "source_health": source_health,
             "raw_by_source": raw_by_source,
         }
+
+    # Filter 2: safety net — drop excluded companies after dedup
+    if excluded:
+        before = len(new_jobs)
+        new_jobs = [j for j in new_jobs if j.company.lower() not in excluded]
+        dropped = before - len(new_jobs)
+        if dropped:
+            bound_log.info("donotapply_filtered_post_dedup", dropped=dropped)
 
     # Update after_dedup counts per source in health entries
     after_dedup_by_source: dict[str, int] = {}

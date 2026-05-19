@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     CLAUDE_INPUT_COST_PER_MTOK: float = Field(default=3.0, ge=0)
     CLAUDE_OUTPUT_COST_PER_MTOK: float = Field(default=15.0, ge=0)
 
+    # ---- Flask dashboard ----
+    FLASK_SECRET_KEY: str | None = None
+
     # ---- Observability ----
     LANGSMITH_TRACING: bool = False
     LANGSMITH_API_KEY: str | None = None
@@ -77,6 +80,7 @@ class Settings(BaseSettings):
     RESUME_SUMMARY_PATH: Path = Path("config/resume_summary.md")
     CANDIDATE_PROFILE_PATH: Path = Path("config/candidate_profile.yaml")
     WATCHLIST_PATH: Path = Path("config/watchlist.yaml")
+    DONOTAPPLY_PATH: Path = Path("config/donotapply.yaml")
 
     # ---- Source health ----
     SERPAPI_MIN_QUOTA: int = Field(default=10, ge=1)

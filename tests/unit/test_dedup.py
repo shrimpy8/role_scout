@@ -43,7 +43,8 @@ class TestDedup:
                 with patch("role_scout.nodes.discovery.get_rw_conn", side_effect=RuntimeError("db locked")):
                     with patch("role_scout.nodes.discovery.Settings"):
                         with patch("role_scout.nodes.discovery._persist_health"):
-                            result = discovery_node(state)
+                            with patch("role_scout.nodes.discovery.get_excluded_set", return_value=frozenset()):
+                                result = discovery_node(state)
 
         assert result.get("cancel_reason") == "dedup_failed"
         assert result.get("new_jobs") == []
@@ -62,7 +63,8 @@ class TestDedup:
                 with patch("role_scout.nodes.discovery.get_rw_conn", side_effect=sqlite3.OperationalError("locked")):
                     with patch("role_scout.nodes.discovery.Settings"):
                         with patch("role_scout.nodes.discovery._persist_health"):
-                            result = discovery_node(state)
+                            with patch("role_scout.nodes.discovery.get_excluded_set", return_value=frozenset()):
+                                result = discovery_node(state)
 
         assert result.get("cancel_reason") == "dedup_failed"
         errors = result.get("errors", [])
@@ -85,7 +87,8 @@ class TestDedup:
                     with patch("role_scout.nodes.discovery.get_rw_conn", return_value=mock_conn):
                         with patch("role_scout.nodes.discovery.Settings"):
                             with patch("role_scout.nodes.discovery._persist_health"):
-                                result = discovery_node(state)
+                                with patch("role_scout.nodes.discovery.get_excluded_set", return_value=frozenset()):
+                                    result = discovery_node(state)
 
         assert result.get("new_jobs_count") == 3
 
@@ -102,8 +105,9 @@ class TestDedup:
         ]):
             with patch("role_scout.nodes.discovery.Settings"):
                 with patch("role_scout.nodes.discovery._persist_health"):
-                    with patch("role_scout.nodes.discovery.dedup_jobs") as mock_dedup:
-                        result = discovery_node(state)
+                    with patch("role_scout.nodes.discovery.get_excluded_set", return_value=frozenset()):
+                        with patch("role_scout.nodes.discovery.dedup_jobs") as mock_dedup:
+                            result = discovery_node(state)
 
         mock_dedup.assert_not_called()
         assert result.get("cancel_reason") == "crippled_fetch"

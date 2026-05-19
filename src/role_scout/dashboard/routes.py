@@ -16,7 +16,7 @@ import structlog
 from flask import Blueprint, g, jsonify, request, send_from_directory
 
 from role_scout.config import Settings
-from role_scout.dal import watchlist_dal
+from role_scout.dal import donotapply_dal, watchlist_dal
 from role_scout.db import get_ro_conn, get_rw_conn, ro_conn, rw_conn
 from role_scout.watchlist_state import current_revision, next_revision
 
@@ -254,6 +254,61 @@ def alignment_run(hash_id: str):
 
 
 # ---------------------------------------------------------------------------
+# GET /api/jd/download/<hash_id>  — download JD with friendly filename
+# ---------------------------------------------------------------------------
+
+_FILENAME_UNSAFE_RE = re.compile(r"[^\w\-]")
+
+
+def _safe_filename_part(value: str) -> str:
+    """Replace whitespace with underscores, strip non-word chars."""
+    return _FILENAME_UNSAFE_RE.sub("_", value.replace(" ", "_")).strip("_") or "unknown"
+
+
+@bp.route("/api/jd/download/<hash_id>", methods=["GET"])
+def jd_download_by_hash(hash_id: str):
+    """Download a stored JD as Company_RoleName_JD.txt."""
+    err = _validate_hash_id(hash_id)
+    if err:
+        return err
+
+    from role_scout.compat.db.qualified_jobs import get_job_by_hash_id
+
+    with ro_conn(Settings().DB_PATH) as conn:
+        job = get_job_by_hash_id(conn, hash_id)
+
+    if job is None:
+        return jsonify({"error": {"code": "NOT_FOUND", "message": "Job not found", "details": []}}), 404
+
+    dl_name = f"{_safe_filename_part(job.company)}_{_safe_filename_part(job.title)}_JD.txt"
+    log.info("jd_download_by_hash", hash_id=hash_id, dl_name=dl_name)
+
+    # Prefer file on disk if written; fall back to description stored in DB
+    jd_content: str | None = None
+    if job.jd_filename:
+        settings = Settings()
+        jd_dir = (Path(settings.DB_PATH).parent / "jds").resolve()
+        requested = (jd_dir / job.jd_filename).resolve()
+        if str(requested).startswith(str(jd_dir) + "/") and requested.exists():
+            jd_content = requested.read_text(encoding="utf-8", errors="replace")
+
+    if jd_content is None:
+        if not job.description:
+            return jsonify({"error": {"code": "NOT_FOUND", "message": "No JD stored for this job", "details": []}}), 404
+        jd_content = job.description
+
+    url_header = f"Job Posting URL: {job.url}\n{'=' * 60}\n\n" if job.url else ""
+    combined = url_header + jd_content
+
+    from flask import Response
+    return Response(
+        combined,
+        mimetype="text/plain",
+        headers={"Content-Disposition": f'attachment; filename="{dl_name}"'},
+    )
+
+
+# ---------------------------------------------------------------------------
 # GET /jds/<filename>
 # ---------------------------------------------------------------------------
 
@@ -407,6 +462,67 @@ def watchlist_remove(company: str):
         return jsonify({"error": {"code": "WATCHLIST_WRITE_ERROR", "message": str(exc), "details": []}}), 500
 
     return jsonify_ok({"watchlist": updated, "revision": next_revision()}), 200
+
+
+# ---------------------------------------------------------------------------
+# GET /api/donotapply
+# ---------------------------------------------------------------------------
+
+@bp.route("/api/donotapply", methods=["GET"])
+def donotapply_get():
+    """Return the current do-not-apply list."""
+    try:
+        current = donotapply_dal.get_donotapply()
+    except Exception:
+        log.exception("donotapply_get.error")
+        return jsonify({"error": {"code": "DONOTAPPLY_READ_ERROR", "message": "Failed to read do-not-apply list", "details": []}}), 500
+    return jsonify_ok({"donotapply": current}), 200
+
+
+# ---------------------------------------------------------------------------
+# POST /api/donotapply
+# ---------------------------------------------------------------------------
+
+@bp.route("/api/donotapply", methods=["POST"])
+def donotapply_add():
+    """Add a company to the do-not-apply list."""
+    body = request.get_json(silent=True) or {}
+    company = body.get("company", "").strip()
+    if not company or len(company) > _MAX_COMPANY_NAME_LENGTH or "\n" in company or "\r" in company:
+        return jsonify({"error": {"code": "VALIDATION_ERROR", "message": f"company must be 1–{_MAX_COMPANY_NAME_LENGTH} chars with no newlines", "details": []}}), 422
+
+    try:
+        updated = donotapply_dal.add_to_donotapply(company)
+    except Exception:
+        log.exception("donotapply_add.error", company=company)
+        return jsonify({"error": {"code": "DONOTAPPLY_WRITE_ERROR", "message": "Failed to update do-not-apply list", "details": []}}), 500
+
+    return jsonify_ok({"donotapply": updated}), 200
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/donotapply/<company>
+# ---------------------------------------------------------------------------
+
+@bp.route("/api/donotapply/<company>", methods=["DELETE"])
+def donotapply_remove(company: str):
+    """Remove a company from the do-not-apply list."""
+    try:
+        current = donotapply_dal.get_donotapply()
+    except Exception:
+        log.exception("donotapply_remove.read_error", company=company)
+        return jsonify({"error": {"code": "DONOTAPPLY_READ_ERROR", "message": "Failed to read do-not-apply list", "details": []}}), 500
+
+    if company not in current:
+        return jsonify({"error": {"code": "NOT_FOUND", "message": f"{company!r} is not in the do-not-apply list", "details": []}}), 404
+
+    try:
+        updated = donotapply_dal.remove_from_donotapply(company)
+    except Exception:
+        log.exception("donotapply_remove.write_error", company=company)
+        return jsonify({"error": {"code": "DONOTAPPLY_WRITE_ERROR", "message": "Failed to update do-not-apply list", "details": []}}), 500
+
+    return jsonify_ok({"donotapply": updated}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -616,6 +732,7 @@ def index():
     total_counts["history"] = total_counts.get("applied", 0) + total_counts.get("rejected", 0)
 
     watchlist = watchlist_dal.get_watchlist()
+    donotapply = donotapply_dal.get_donotapply()
 
     return render_template(
         "index.html",
@@ -630,4 +747,5 @@ def index():
         run_history=run_history,
         watchlist=[c.lower() for c in watchlist],  # lowercased for Jinja star check
         watchlist_initial=watchlist,               # original casing for JS sidebar panel
+        donotapply_initial=donotapply,
     )
