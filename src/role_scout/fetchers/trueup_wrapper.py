@@ -20,6 +20,7 @@ def run_trueup(
     imap_password: str,
     imap_host: str = "imap.mail.yahoo.com",
     imap_folder: str = "INBOX",
+    max_emails: int = 3,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Synchronous TrueUp IMAP fetch. Returns (raw_jobs, query_params).
 
@@ -29,7 +30,7 @@ def run_trueup(
     query_params: dict[str, Any] = {
         "host": imap_host,
         "folder": imap_folder,
-        "max_emails": 3,
+        "max_emails": max_emails,
     }
     t0 = time.monotonic()
     try:
@@ -38,6 +39,7 @@ def run_trueup(
             password=imap_password,
             host=imap_host,
             folder=imap_folder,
+            max_emails=max_emails,
         )
         duration = time.monotonic() - t0
         log.info("trueup_fetch_done", count=len(raw), duration_s=round(duration, 2))

@@ -170,6 +170,7 @@ All runtime configuration lives in `.env`. No values are hardcoded.
 | `IMAP_USER` | Email address that receives TrueUp job alert digests |
 | `IMAP_PASSWORD` | App-specific password for that IMAP account |
 | `IMAP_FOLDER` | Mailbox folder to read (default: `INBOX`) |
+| `TRUEUP_MAX_EMAILS` | `3` | How many recent TrueUp digest emails to parse per run (1–20) |
 
 ### Optional
 

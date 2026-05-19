@@ -63,6 +63,7 @@ class TestConcurrentFetch:
         settings.IMAP_HOST = "imap.mail.yahoo.com"
         settings.IMAP_FOLDER = "INBOX"
         settings.DISCOVERY_MAX_ITEMS = 50
+        settings.TRUEUP_MAX_EMAILS = 3
 
         with (
             patch("role_scout.nodes.discovery.run_linkedin", slow_linkedin),
@@ -137,7 +138,7 @@ class TestImaplibConcurrency:
         open_ids: list[int] = []
         connection_count = 0
 
-        def fake_fetch_trueup(user, password, host="imap.mail.yahoo.com", folder="INBOX"):
+        def fake_fetch_trueup(user, password, host="imap.mail.yahoo.com", folder="INBOX", max_emails=3):
             nonlocal connection_count
             connection_count += 1
             open_ids.append(id(user))

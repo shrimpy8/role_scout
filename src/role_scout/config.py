@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     IMAP_PASSWORD: str | None = None
     IMAP_HOST: str = "imap.mail.yahoo.com"
     IMAP_FOLDER: str = "INBOX"
+    TRUEUP_MAX_EMAILS: int = Field(default=3, ge=1, le=20)
 
     # ---- Optional eval keys (only required when running evals) ----
     OPENAI_API_KEY: str | None = None

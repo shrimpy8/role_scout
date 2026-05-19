@@ -66,7 +66,7 @@ async def _gather_sources(
 
     if "trueup" not in skipped_sources:
         tasks.append(
-            _fetch_one("trueup", run_trueup, settings.IMAP_USER, settings.IMAP_PASSWORD, settings.IMAP_HOST, settings.IMAP_FOLDER)
+            _fetch_one("trueup", run_trueup, settings.IMAP_USER, settings.IMAP_PASSWORD, settings.IMAP_HOST, settings.IMAP_FOLDER, settings.TRUEUP_MAX_EMAILS)
         )
     else:
         bound_log.warning("source_skipped", source="trueup")
