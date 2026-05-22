@@ -137,7 +137,7 @@ class TestWatchlistDeleteNotFound:
 
 class TestJdDownload:
     _VALID_HASH = "a" * 16
-    _JD_LOOKUP = "role_scout.compat.db.qualified_jobs.get_job_by_hash_id"
+    _JD_LOOKUP = "role_scout.dashboard.routes.get_job_by_hash_id"
 
     def _make_job(self, description: str | None, url: str | None = None, jd_filename: str | None = None) -> MagicMock:
         job = MagicMock()
@@ -214,7 +214,7 @@ def _fake_ro_conn(jobs):
 
 class TestReviewedZipDownload:
     _ENDPOINT = "/api/jd/download-reviewed-zip"
-    _GET_JOBS = "role_scout.compat.db.qualified_jobs.get_qualified_jobs"
+    _GET_JOBS = "role_scout.dashboard.routes.get_qualified_jobs"
 
     def _patch(self, jobs, client):
         mock_conn = MagicMock()

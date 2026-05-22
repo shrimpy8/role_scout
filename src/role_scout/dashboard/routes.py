@@ -8,17 +8,28 @@ from __future__ import annotations
 import io
 import json
 import re
+import sqlite3
 import uuid
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
+from string import Template
 from typing import Any
 
 import structlog
-from flask import Blueprint, Response, g, jsonify, request, send_file, send_from_directory
+from flask import Blueprint, Response, current_app, g, jsonify, render_template, request, send_file, send_from_directory
 
+from role_scout.compat.db.qualified_jobs import (
+    get_job_by_hash_id,
+    get_job_count_by_source,
+    get_job_count_by_status,
+    get_qualified_jobs,
+    update_jd_alignment,
+    update_job_status,
+)
 from role_scout.config import Settings
 from role_scout.dal import donotapply_dal, watchlist_dal
+from role_scout.dal.run_log_dal import get_run_logs
 from role_scout.db import get_ro_conn, get_rw_conn, ro_conn, rw_conn
 from role_scout.watchlist_state import current_revision, next_revision
 
@@ -34,6 +45,11 @@ _VALID_SORT_COLS = {"match_pct", "company", "title", "city", "work_model", "comp
 _VALID_DIRS = {"asc", "desc"}
 
 _HASH_ID_RE = re.compile(r"^[a-f0-9]{16}$")
+
+
+def _get_settings() -> Settings:
+    """Return the app-scoped Settings instance (initialised once at startup)."""
+    return current_app.config["RS_SETTINGS"]
 
 
 def _validate_hash_id(hash_id: str):
@@ -79,9 +95,9 @@ def tailor_route(hash_id: str):
     body = request.get_json(silent=True) or {}
     force = bool(body.get("force", False))
 
-    settings = Settings()
+    settings = _get_settings()
     try:
-        from role_scout.tailor import NotQualifiedError, TailorParseError, tailor_resume
+        from role_scout.tailor import NotQualifiedError, TailorParseError, tailor_resume  # deferred: circular import
         with rw_conn(settings.DB_PATH) as conn:
             result = tailor_resume(
                 conn,
@@ -97,10 +113,10 @@ def tailor_route(hash_id: str):
             )
     except NotQualifiedError as exc:
         bound_log.warning("tailor_route.not_qualified", reason=str(exc))
-        return jsonify({"error": {"code": "NOT_QUALIFIED", "message": str(exc), "details": []}}), 400
+        return jsonify({"error": {"code": "NOT_QUALIFIED", "message": "Job does not meet the qualification threshold for tailoring", "details": []}}), 400
     except TailorParseError as exc:
         bound_log.error("tailor_route.parse_error", reason=str(exc))
-        return jsonify({"error": {"code": "CLAUDE_API_ERROR", "message": str(exc), "details": []}}), 500
+        return jsonify({"error": {"code": "CLAUDE_API_ERROR", "message": "Claude returned an unparseable response — please try again", "details": []}}), 500
     except Exception:
         bound_log.exception("tailor_route.error")
         return jsonify({"error": {"code": "CLAUDE_API_ERROR", "message": "Tailoring failed due to an unexpected error. Please try again — if this keeps happening, check your ANTHROPIC_API_KEY in .env.", "details": []}}), 500
@@ -130,9 +146,8 @@ def status_update(hash_id: str):
     if new_status not in _VALID_STATUSES:
         return jsonify({"error": {"code": "INVALID_STATUS", "message": f"status must be one of: {', '.join(sorted(_VALID_STATUSES))}", "details": []}}), 400
 
-    settings = Settings()
+    settings = _get_settings()
     try:
-        from role_scout.compat.db.qualified_jobs import update_job_status
         with rw_conn(settings.DB_PATH) as conn:
             old_status = update_job_status(conn, hash_id, new_status)
             conn.commit()
@@ -160,9 +175,6 @@ def alignment_run(hash_id: str):
     Returns 404 if job not found, 422 if no description or resume missing.
     Returns 500 on Claude error.
     """
-    from pathlib import Path as _Path
-    from string import Template
-
     err = _validate_hash_id(hash_id)
     if err:
         return err
@@ -170,8 +182,7 @@ def alignment_run(hash_id: str):
     body = request.get_json(silent=True) or {}
     force = bool(body.get("force", False))
 
-    settings = Settings()
-    from role_scout.compat.db.qualified_jobs import get_job_by_hash_id, update_jd_alignment
+    settings = _get_settings()
 
     with ro_conn(settings.DB_PATH) as conn:
         job = get_job_by_hash_id(conn, hash_id)
@@ -190,11 +201,11 @@ def alignment_run(hash_id: str):
     if not job.description:
         return jsonify({"error": {"code": "NO_DESCRIPTION", "message": "No job description available to analyze", "details": []}}), 422
 
-    resume_path = _Path("config/resume_summary.md")
+    resume_path = settings.RESUME_SUMMARY_PATH
     if not resume_path.exists():
         return jsonify({"error": {"code": "RESUME_MISSING", "message": "config/resume_summary.md not found — place your resume summary there", "details": []}}), 422
 
-    prompt_path = _Path(__file__).parent.parent / "prompts" / "alignment_system.md"
+    prompt_path = Path(__file__).parent.parent / "prompts" / "alignment_system.md"
     if not prompt_path.exists():
         return jsonify({"error": {"code": "PROMPT_MISSING", "message": "alignment_system.md prompt not found", "details": []}}), 500
 
@@ -214,7 +225,7 @@ def alignment_run(hash_id: str):
     )
 
     try:
-        from role_scout.claude_client import call_claude
+        from role_scout.claude_client import call_claude  # deferred: circular import
         text, _in_tok, _out_tok = call_claude(
             system=system_prompt,
             user="Analyze this job for alignment with the candidate's resume.",
@@ -246,7 +257,7 @@ def alignment_run(hash_id: str):
         with rw_conn(settings.DB_PATH) as conn:
             update_jd_alignment(conn, hash_id, alignment_json)
             conn.commit()
-    except Exception:
+    except (sqlite3.OperationalError, sqlite3.DatabaseError):
         log.exception("alignment_run.db_write_error", hash_id=hash_id)
         # Return result even if cache write fails
 
@@ -274,9 +285,7 @@ def jd_download_by_hash(hash_id: str):
     if err:
         return err
 
-    from role_scout.compat.db.qualified_jobs import get_job_by_hash_id
-
-    with ro_conn(Settings().DB_PATH) as conn:
+    with ro_conn(_get_settings().DB_PATH) as conn:
         job = get_job_by_hash_id(conn, hash_id)
 
     if job is None:
@@ -288,7 +297,7 @@ def jd_download_by_hash(hash_id: str):
     # Prefer file on disk if written; fall back to description stored in DB
     jd_content: str | None = None
     if job.jd_filename:
-        settings = Settings()
+        settings = _get_settings()
         jd_dir = (Path(settings.DB_PATH).parent / "jds").resolve()
         requested = (jd_dir / job.jd_filename).resolve()
         if str(requested).startswith(str(jd_dir) + "/") and requested.exists():
@@ -302,10 +311,11 @@ def jd_download_by_hash(hash_id: str):
     url_header = f"Job Posting URL: {job.url}\n{'=' * 60}\n\n" if job.url else ""
     combined = url_header + jd_content
 
-    return Response(
-        combined,
+    return send_file(
+        io.BytesIO(combined.encode("utf-8")),
         mimetype="text/plain",
-        headers={"Content-Disposition": f'attachment; filename="{dl_name}"'},
+        as_attachment=True,
+        download_name=dl_name,
     )
 
 
@@ -319,7 +329,7 @@ def jd_download(filename: str):
 
     Path traversal protected: rejects '..' and absolute paths.
     """
-    settings = Settings()
+    settings = _get_settings()
     jd_dir = (Path(settings.DB_PATH).parent / "jds").resolve()
     requested = (jd_dir / filename).resolve()
     if not str(requested).startswith(str(jd_dir) + "/"):
@@ -386,9 +396,7 @@ def jd_download_reviewed_zip():
     Each file is Company_Role_hashid8.txt.  A manifest.txt summarises what
     was included and what was unavailable.  No CSRF required (read-only GET).
     """
-    from role_scout.compat.db.qualified_jobs import get_qualified_jobs
-
-    settings = Settings()
+    settings = _get_settings()
     try:
         with ro_conn(settings.DB_PATH) as conn:
             jobs = get_qualified_jobs(conn, status="reviewed", limit=200)
@@ -453,7 +461,7 @@ def pipeline_status():
         run_id, status, qualified_count, top_3_matches, ttl_remaining_s,
         watchlist_hits, watchlist_revision, source_health, estimated_cost_usd.
     """
-    settings = Settings()
+    settings = _get_settings()
     with ro_conn(settings.DB_PATH) as conn:
         row = conn.execute(
             """
@@ -471,7 +479,8 @@ def pipeline_status():
             return jsonify({"status": "idle", "run_id": None}), 200
 
         top3_rows = conn.execute(
-            f"SELECT title, company, match_pct FROM qualified_jobs ORDER BY match_pct DESC LIMIT {_TOP_MATCHES_LIMIT}"
+            "SELECT title, company, match_pct FROM qualified_jobs ORDER BY match_pct DESC LIMIT ?",
+            (_TOP_MATCHES_LIMIT,),
         ).fetchall()
 
     d = dict(row)
@@ -481,8 +490,8 @@ def pipeline_status():
             deadline = datetime.fromisoformat(d["ttl_deadline"]).replace(tzinfo=UTC)
             remaining = (deadline - datetime.now(UTC)).total_seconds()
             ttl_remaining_s = max(0, int(remaining))
-        except Exception:
-            pass
+        except (ValueError, TypeError, KeyError):
+            log.warning("pipeline_status.ttl_parse_failed", raw=d.get("ttl_deadline"))
 
     top3_matches = [
         {"title": r["title"], "company": r["company"], "match_pct": r["match_pct"]}
@@ -524,7 +533,7 @@ def watchlist_get():
     """Return the current watchlist."""
     try:
         current = watchlist_dal.get_watchlist()
-    except Exception:
+    except OSError:
         log.exception("watchlist_get.error")
         return jsonify({"error": {"code": "WATCHLIST_READ_ERROR", "message": "Failed to read watchlist", "details": []}}), 500
     return jsonify_ok({"watchlist": current, "revision": current_revision()}), 200
@@ -544,9 +553,9 @@ def watchlist_add():
 
     try:
         updated = watchlist_dal.add_to_watchlist(company)
-    except Exception as exc:
+    except OSError:
         log.exception("watchlist_add.error", company=company)
-        return jsonify({"error": {"code": "WATCHLIST_WRITE_ERROR", "message": str(exc), "details": []}}), 500
+        return jsonify({"error": {"code": "WATCHLIST_WRITE_ERROR", "message": "Failed to update watchlist", "details": []}}), 500
 
     return jsonify_ok({"watchlist": updated, "revision": next_revision()}), 200
 
@@ -560,7 +569,7 @@ def watchlist_remove(company: str):
     """Remove a company from the watchlist. Returns 404 if company is not present."""
     try:
         current = watchlist_dal.get_watchlist()
-    except Exception:
+    except OSError:
         log.exception("watchlist_remove.read_error", company=company)
         return jsonify({"error": {"code": "WATCHLIST_READ_ERROR", "message": "Failed to read watchlist", "details": []}}), 500
 
@@ -569,9 +578,9 @@ def watchlist_remove(company: str):
 
     try:
         updated = watchlist_dal.remove_from_watchlist(company)
-    except Exception as exc:
+    except OSError:
         log.exception("watchlist_remove.write_error", company=company)
-        return jsonify({"error": {"code": "WATCHLIST_WRITE_ERROR", "message": str(exc), "details": []}}), 500
+        return jsonify({"error": {"code": "WATCHLIST_WRITE_ERROR", "message": "Failed to update watchlist", "details": []}}), 500
 
     return jsonify_ok({"watchlist": updated, "revision": next_revision()}), 200
 
@@ -585,10 +594,10 @@ def donotapply_get():
     """Return YAML-managed and env-locked do-not-apply lists separately."""
     try:
         current = donotapply_dal.get_donotapply()
-    except Exception:
+    except OSError:
         log.exception("donotapply_get.error")
         return jsonify({"error": {"code": "DONOTAPPLY_READ_ERROR", "message": "Failed to read do-not-apply list", "details": []}}), 500
-    locked = donotapply_dal.get_locked_list(Settings().DONOTAPPLY_COMPANIES)
+    locked = donotapply_dal.get_locked_list(_get_settings().DONOTAPPLY_COMPANIES)
     return jsonify_ok({"donotapply": current, "locked": locked}), 200
 
 
@@ -606,7 +615,7 @@ def donotapply_add():
 
     try:
         updated = donotapply_dal.add_to_donotapply(company)
-    except Exception:
+    except OSError:
         log.exception("donotapply_add.error", company=company)
         return jsonify({"error": {"code": "DONOTAPPLY_WRITE_ERROR", "message": "Failed to update do-not-apply list", "details": []}}), 500
 
@@ -622,7 +631,7 @@ def donotapply_remove(company: str):
     """Remove a company from the do-not-apply list."""
     try:
         current = donotapply_dal.get_donotapply()
-    except Exception:
+    except OSError:
         log.exception("donotapply_remove.read_error", company=company)
         return jsonify({"error": {"code": "DONOTAPPLY_READ_ERROR", "message": "Failed to read do-not-apply list", "details": []}}), 500
 
@@ -631,7 +640,7 @@ def donotapply_remove(company: str):
 
     try:
         updated = donotapply_dal.remove_from_donotapply(company)
-    except Exception:
+    except OSError:
         log.exception("donotapply_remove.write_error", company=company)
         return jsonify({"error": {"code": "DONOTAPPLY_WRITE_ERROR", "message": "Failed to update do-not-apply list", "details": []}}), 500
 
@@ -651,10 +660,13 @@ def runs_list():
     except ValueError:
         return jsonify({"error": {"code": "VALIDATION_ERROR", "message": "limit/offset must be integers", "details": []}}), 422
 
-    settings = Settings()
-    with ro_conn(settings.DB_PATH) as conn:
-        from role_scout.dal.run_log_dal import get_run_logs
-        rows, total = get_run_logs(conn, limit=limit, offset=offset)
+    settings = _get_settings()
+    try:
+        with ro_conn(settings.DB_PATH) as conn:
+            rows, total = get_run_logs(conn, limit=limit, offset=offset)
+    except (sqlite3.OperationalError, sqlite3.DatabaseError):
+        log.exception("runs_list.db_error")
+        return jsonify({"error": {"code": "DB_ERROR", "message": "Failed to load run history", "details": []}}), 500
 
     return jsonify({
         "data": [r.model_dump(mode="json") for r in rows],
@@ -675,7 +687,7 @@ def pipeline_resume():
     approved = bool(body.get("approved", False))
     decision = "approve" if approved else "user_cancel"
 
-    settings = Settings()
+    settings = _get_settings()
     with ro_conn(settings.DB_PATH) as conn:
         row = conn.execute(
             "SELECT run_id FROM run_log WHERE status = 'review_pending' ORDER BY started_at DESC LIMIT 1"
@@ -685,7 +697,7 @@ def pipeline_resume():
         return jsonify({"error": {"code": "NO_PENDING_RUN", "message": "No run awaiting review", "details": []}}), 404
 
     run_id = row["run_id"]
-    from role_scout.runner import resolve_pending
+    from role_scout.runner import resolve_pending  # deferred: circular import
     resolved = resolve_pending(run_id, decision)
 
     if not resolved:
@@ -701,7 +713,7 @@ def pipeline_resume():
 @bp.route("/api/pipeline/extend", methods=["POST"])
 def pipeline_extend():
     """Extend the TTL of the current review_pending run by 2 hours."""
-    settings = Settings()
+    settings = _get_settings()
     with rw_conn(settings.DB_PATH) as conn:
         row = conn.execute(
             "SELECT run_id, ttl_extended FROM run_log WHERE status = 'review_pending' ORDER BY started_at DESC LIMIT 1"
@@ -713,9 +725,10 @@ def pipeline_extend():
         if row["ttl_extended"]:
             return jsonify({"error": {"code": "ALREADY_EXTENDED", "message": "TTL already extended once for this run", "details": []}}), 400
 
+        extension = int(settings.TTL_EXTENSION_SECONDS)
         conn.execute(
-            f"UPDATE run_log SET ttl_deadline = datetime(ttl_deadline, '+{settings.TTL_EXTENSION_SECONDS} seconds'), ttl_extended = 1 WHERE run_id = ?",
-            (row["run_id"],),
+            "UPDATE run_log SET ttl_deadline = datetime(ttl_deadline, ? || ' seconds'), ttl_extended = 1 WHERE run_id = ?",
+            (f"+{extension}", row["run_id"]),
         )
         conn.commit()
         return jsonify_ok({"status": "extended", "run_id": row["run_id"], "extended_by_seconds": settings.TTL_EXTENSION_SECONDS}), 200
@@ -728,7 +741,6 @@ def pipeline_extend():
 @bp.route("/debug/runs", methods=["GET"])
 def debug_runs():
     """Render the debug run history page."""
-    from flask import render_template
     return render_template("debug_runs.html")
 
 
@@ -739,11 +751,10 @@ def debug_runs():
 @bp.route("/debug/basic", methods=["GET"])
 def basic_dashboard():
     """Fallback basic dashboard (pre-revamp)."""
-    from flask import render_template
-    settings = Settings()
+    settings = _get_settings()
     with ro_conn(settings.DB_PATH) as conn:
         rows = conn.execute(
-            f"SELECT hash_id, title, company, location, match_pct, status FROM qualified_jobs ORDER BY match_pct DESC LIMIT 100"
+            "SELECT hash_id, title, company, location, match_pct, status FROM qualified_jobs ORDER BY match_pct DESC LIMIT 100"
         ).fetchall()
         jobs = [dict(r) for r in rows]
         threshold = settings.SCORE_THRESHOLD
@@ -758,14 +769,7 @@ def basic_dashboard():
 @bp.route("/", methods=["GET"])
 def index():
     """Full-featured dashboard index page."""
-    from flask import render_template
-    from role_scout.compat.db.qualified_jobs import (
-        get_qualified_jobs,
-        get_job_count_by_status,
-        get_job_count_by_source,
-    )
-
-    settings = Settings()
+    settings = _get_settings()
 
     # Parse and validate query params
     active_status = request.args.get("status", "new")
@@ -822,7 +826,7 @@ def index():
         try:
             dt = datetime.fromisoformat(d["started_at"])
             d["started_at_display"] = dt.strftime("%b %-d, %-I:%M %p")
-        except Exception:
+        except (ValueError, TypeError):
             d["started_at_display"] = d.get("started_at", "")
         run_history.append(d)
 

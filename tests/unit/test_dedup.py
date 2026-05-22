@@ -40,7 +40,7 @@ class TestDedup:
             ("linkedin", [{"id": "1"}], {}, 0.1, None),
         ]):
             with patch("role_scout.nodes.discovery.normalize_jobs", return_value=jobs):
-                with patch("role_scout.nodes.discovery.get_rw_conn", side_effect=RuntimeError("db locked")):
+                with patch("role_scout.nodes.discovery.rw_conn", side_effect=RuntimeError("db locked")):
                     with patch("role_scout.nodes.discovery.Settings"):
                         with patch("role_scout.nodes.discovery._persist_health"):
                             with patch("role_scout.nodes.discovery.get_full_excluded_set", return_value=frozenset()):
@@ -60,7 +60,7 @@ class TestDedup:
             ("linkedin", [{"id": "1"}], {}, 0.1, None),
         ]):
             with patch("role_scout.nodes.discovery.normalize_jobs", return_value=[]):
-                with patch("role_scout.nodes.discovery.get_rw_conn", side_effect=sqlite3.OperationalError("locked")):
+                with patch("role_scout.nodes.discovery.rw_conn", side_effect=sqlite3.OperationalError("locked")):
                     with patch("role_scout.nodes.discovery.Settings"):
                         with patch("role_scout.nodes.discovery._persist_health"):
                             with patch("role_scout.nodes.discovery.get_full_excluded_set", return_value=frozenset()):
@@ -79,12 +79,16 @@ class TestDedup:
 
         mock_conn = MagicMock()
 
+        mock_rw_ctx = MagicMock()
+        mock_rw_ctx.__enter__ = MagicMock(return_value=mock_conn)
+        mock_rw_ctx.__exit__ = MagicMock(return_value=False)
+
         with patch("role_scout.nodes.discovery.asyncio.run", return_value=[
             ("linkedin", [{"id": str(i)} for i in range(5)], {}, 0.1, None),
         ]):
             with patch("role_scout.nodes.discovery.normalize_jobs", return_value=deduped):
                 with patch("role_scout.nodes.discovery.dedup_jobs", return_value=deduped):
-                    with patch("role_scout.nodes.discovery.get_rw_conn", return_value=mock_conn):
+                    with patch("role_scout.nodes.discovery.rw_conn", return_value=mock_rw_ctx):
                         with patch("role_scout.nodes.discovery.Settings"):
                             with patch("role_scout.nodes.discovery._persist_health"):
                                 with patch("role_scout.nodes.discovery.get_full_excluded_set", return_value=frozenset()):

@@ -74,7 +74,7 @@
         showError((data.error && data.error.message) || "Couldn't add company");
         return;
       }
-      watchlist = data.watchlist || watchlist;
+      watchlist = (data.data && data.data.watchlist) || watchlist;
       renderWatchlist();
     } catch (_) {
       watchlist = watchlist.filter(function (c) { return c !== company; });
@@ -100,7 +100,7 @@
         showError((data.error && data.error.message) || "Couldn't remove company");
         return;
       }
-      watchlist = data.watchlist || watchlist;
+      watchlist = (data.data && data.data.watchlist) || watchlist;
       renderWatchlist();
     } catch (_) {
       watchlist = prev;
@@ -115,7 +115,7 @@
       var resp = await fetch('/api/watchlist');
       if (!resp.ok) return;
       var data = await resp.json();
-      watchlist = data.watchlist || [];
+      watchlist = (data.data && data.data.watchlist) || [];
       renderWatchlist();
     } catch (_) {}
   };

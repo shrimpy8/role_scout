@@ -10,18 +10,17 @@ from flask_wtf.csrf import CSRFProtect
 log = structlog.get_logger()
 csrf = CSRFProtect()
 
-_DEV_SECRET_KEY = "dev-insecure-key"
+_DEV_SECRET_KEY = "dev-insecure-key"  # checked in guard below — change both together
 
 
 def create_app(flask_secret_key: str | None = None, log_level: str | None = None) -> Flask:
     """Create and configure the Flask application."""
-    if flask_secret_key is None or log_level is None:
-        from role_scout.config import get_settings
-        _settings = get_settings()
-        if flask_secret_key is None:
-            flask_secret_key = _settings.FLASK_SECRET_KEY
-        if log_level is None:
-            log_level = _settings.LOG_LEVEL
+    from role_scout.config import get_settings
+    _settings = get_settings()
+    if flask_secret_key is None:
+        flask_secret_key = _settings.FLASK_SECRET_KEY
+    if log_level is None:
+        log_level = _settings.LOG_LEVEL
 
     app = Flask(
         __name__,
@@ -64,6 +63,9 @@ def create_app(flask_secret_key: str | None = None, log_level: str | None = None
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-Content-Type-Options"] = "nosniff"
         return response
+
+    # Store settings once per app lifetime so route handlers don't re-read .env on every request
+    app.config["RS_SETTINGS"] = _settings
 
     from role_scout.dashboard.routes import bp
     app.register_blueprint(bp)

@@ -13,7 +13,7 @@ from role_scout.compat.pipeline.normalize import normalize_jobs
 from role_scout.config import Settings
 from role_scout.dal.donotapply_dal import get_full_excluded_set
 from role_scout.dal.run_log_dal import write_source_health
-from role_scout.db import get_rw_conn
+from role_scout.db import get_rw_conn, rw_conn
 from role_scout.fetchers.google_wrapper import run_google
 from role_scout.fetchers.linkedin_wrapper import run_linkedin
 from role_scout.fetchers.trueup_wrapper import run_trueup
@@ -184,10 +184,9 @@ def discovery_node(state: JobSearchState) -> dict[str, Any]:
 
     # --- Dedup ---
     try:
-        conn = get_rw_conn(settings.DB_PATH)
-        new_jobs = dedup_jobs(conn, all_normalized)
-        conn.commit()
-        conn.close()
+        with rw_conn(settings.DB_PATH) as conn:
+            new_jobs = dedup_jobs(conn, all_normalized)
+            conn.commit()
     except Exception as exc:
         bound_log.exception("dedup_failed")
         errors.append(f"dedup_failed: {exc}")
@@ -256,8 +255,7 @@ def _persist_health(
 ) -> None:
     """Write source_health to run_log — best-effort, never raises."""
     try:
-        conn = get_rw_conn(settings.DB_PATH)
-        write_source_health(conn, run_id, health)  # type: ignore[arg-type]
-        conn.close()
+        with rw_conn(settings.DB_PATH) as conn:
+            write_source_health(conn, run_id, health)  # type: ignore[arg-type]
     except Exception:
         bound_log.exception("source_health_persist_failed")

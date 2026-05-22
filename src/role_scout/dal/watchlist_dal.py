@@ -1,12 +1,12 @@
 """Phase 2 DAL for the YAML-backed company watchlist."""
 from __future__ import annotations
 
-import os
-import tempfile
 from pathlib import Path
 
 import structlog
 import yaml
+
+from role_scout.dal._yaml_io import atomic_write_yaml_list
 
 log = structlog.get_logger()
 
@@ -93,30 +93,4 @@ def remove_from_watchlist(company: str, path: Path = DEFAULT_WATCHLIST_PATH) -> 
     return updated
 
 
-def _atomic_write(path: Path, companies: list[str]) -> None:
-    """Write the companies list to a YAML file atomically using tempfile + rename.
-
-    Writes to a sibling ``.yaml.tmp`` file in the same directory, then uses
-    ``os.replace`` (atomic on POSIX, best-effort on Windows) to swap it in.
-
-    Args:
-        path: Destination YAML file path.
-        companies: Sorted list of company names to persist.
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = yaml.dump({"companies": companies}, default_flow_style=False, allow_unicode=True)
-
-    # Write to a temp file in the same directory so os.replace stays on one filesystem
-    dir_fd = str(path.parent)
-    fd, tmp_path = tempfile.mkstemp(dir=dir_fd, suffix=".yaml.tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(payload)
-        os.replace(tmp_path, path)
-    except Exception:
-        # Clean up the temp file if the rename failed
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-        raise
+_atomic_write = atomic_write_yaml_list

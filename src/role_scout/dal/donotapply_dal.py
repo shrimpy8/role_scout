@@ -1,12 +1,12 @@
 """DAL for the YAML-backed do-not-apply company exclusion list."""
 from __future__ import annotations
 
-import os
-import tempfile
 from pathlib import Path
 
 import structlog
 import yaml
+
+from role_scout.dal._yaml_io import atomic_write_yaml_list
 
 log = structlog.get_logger()
 
@@ -86,19 +86,4 @@ def get_full_excluded_set(path: Path | None, env_csv: str) -> frozenset[str]:
     return get_excluded_set(path) | get_locked_set(env_csv)
 
 
-def _atomic_write(path: Path, companies: list[str]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = yaml.dump({"companies": companies}, default_flow_style=False, allow_unicode=True)
-
-    dir_fd = str(path.parent)
-    fd, tmp_path = tempfile.mkstemp(dir=dir_fd, suffix=".yaml.tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(payload)
-        os.replace(tmp_path, path)
-    except Exception:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-        raise
+_atomic_write = atomic_write_yaml_list

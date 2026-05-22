@@ -116,8 +116,9 @@ def init_db(db_path: str = "output/jobsearch.db") -> None:
             try:
                 conn.execute(migration)
                 conn.commit()
-            except sqlite3.OperationalError:
-                pass  # Column already exists — idempotent
+            except sqlite3.OperationalError as e:
+                if "already exists" not in str(e):
+                    raise  # genuine schema error — don't swallow
 
         # Rebuild qualified_jobs if the status CHECK constraint is missing the new statuses.
         # SQLite cannot ALTER a CHECK constraint — table reconstruction is required.
@@ -204,7 +205,12 @@ def init_db(db_path: str = "output/jobsearch.db") -> None:
 
 
 def get_db(db_path: str = "output/jobsearch.db") -> sqlite3.Connection:
-    """Open and return a SQLite connection with row_factory set."""
+    """Open and return a SQLite connection with row_factory set.
+
+    Caller is responsible for calling conn.close() — prefer rw_conn/ro_conn
+    context managers for new code.  This function exists for legacy callers
+    (e.g. preflight.py) that manage their own connection lifecycle.
+    """
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")

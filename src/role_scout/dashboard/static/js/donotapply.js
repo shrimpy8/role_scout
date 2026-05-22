@@ -74,8 +74,9 @@
         showError((data.error && data.error.message) || "Couldn't add company");
         return;
       }
-      donotapply = data.donotapply || donotapply;
-      if (Array.isArray(data.locked)) locked = data.locked;
+      var payload = (data.data) || {};
+      donotapply = payload.donotapply || donotapply;
+      if (Array.isArray(payload.locked)) locked = payload.locked;
       renderList();
     } catch (_) {
       donotapply = donotapply.filter(function (c) { return c !== company; });
@@ -101,8 +102,9 @@
         showError((data.error && data.error.message) || "Couldn't remove company");
         return;
       }
-      donotapply = data.donotapply || donotapply;
-      if (Array.isArray(data.locked)) locked = data.locked;
+      var payload = (data.data) || {};
+      donotapply = payload.donotapply || donotapply;
+      if (Array.isArray(payload.locked)) locked = payload.locked;
       renderList();
     } catch (_) {
       donotapply = prev;

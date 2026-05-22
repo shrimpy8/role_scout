@@ -33,7 +33,7 @@
     <div class="sb-label">Source</div>
   </div>
   {% set source_filters = [
-    (none,         'All Sources',  total_counts.get('new', 0) + total_counts.get('reviewed', 0) + total_counts.get('applied', 0) + total_counts.get('rejected', 0) + total_counts.get('not_a_fit', 0) + total_counts.get('not_available', 0)),
+    (none,         'All Sources',  total_counts.get('total', 0)),
     ('linkedin',   'LinkedIn',     source_counts.get('linkedin', 0)),
     ('google_jobs','Google Jobs',  source_counts.get('google_jobs', 0)),
     ('trueup',     'TrueUp',       source_counts.get('trueup', 0)),
@@ -457,7 +457,7 @@
 {% block scripts %}
 <div id="rs-page-config" hidden
      data-threshold="{{ threshold }}"
-     data-total-jobs="{{ total_counts.get('new', 0) + total_counts.get('reviewed', 0) + total_counts.get('applied', 0) + total_counts.get('rejected', 0) + total_counts.get('not_a_fit', 0) + total_counts.get('not_available', 0) }}"
+     data-total-jobs="{{ total_counts.get('total', 0) }}"
      data-watchlist="{{ watchlist_initial | tojson | e }}"
      data-donotapply="{{ donotapply_initial | tojson | e }}"
      data-donotapply-locked="{{ locked_initial | tojson | e }}"></div>
