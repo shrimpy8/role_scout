@@ -9,12 +9,14 @@
     <div class="sb-label">Status</div>
   </div>
   {% set status_filters = [
-    ('new',      'New',        total_counts.get('new', 0)),
-    ('reviewed', 'Reviewed',   total_counts.get('reviewed', 0)),
-    ('applied',  'Applied',    total_counts.get('applied', 0)),
-    ('rejected', 'Rejected',   total_counts.get('rejected', 0)),
-    ('all',      'All Active', total_counts.get('all', 0)),
-    ('history',  'History',    total_counts.get('history', 0)),
+    ('new',           'New',           total_counts.get('new', 0)),
+    ('reviewed',      'Reviewed',      total_counts.get('reviewed', 0)),
+    ('applied',       'Applied',       total_counts.get('applied', 0)),
+    ('rejected',      'Rejected',      total_counts.get('rejected', 0)),
+    ('not_a_fit',     'Not a Fit',     total_counts.get('not_a_fit', 0)),
+    ('not_available', 'Not Available', total_counts.get('not_available', 0)),
+    ('all',           'All Active',    total_counts.get('all', 0)),
+    ('history',       'History',       total_counts.get('history', 0)),
   ] %}
   {% for key, label, count in status_filters %}
   <a href="/?status={{ key }}{% if active_source %}&source={{ active_source }}{% endif %}&sort={{ active_sort }}&dir={{ active_dir }}"
@@ -31,7 +33,7 @@
     <div class="sb-label">Source</div>
   </div>
   {% set source_filters = [
-    (none,         'All Sources',  total_counts.get('new', 0) + total_counts.get('reviewed', 0) + total_counts.get('applied', 0) + total_counts.get('rejected', 0)),
+    (none,         'All Sources',  total_counts.get('new', 0) + total_counts.get('reviewed', 0) + total_counts.get('applied', 0) + total_counts.get('rejected', 0) + total_counts.get('not_a_fit', 0) + total_counts.get('not_available', 0)),
     ('linkedin',   'LinkedIn',     source_counts.get('linkedin', 0)),
     ('google_jobs','Google Jobs',  source_counts.get('google_jobs', 0)),
     ('trueup',     'TrueUp',       source_counts.get('trueup', 0)),
@@ -155,7 +157,6 @@
 </div>
 
 <!-- Jobs table -->
-<div style="overflow-x:auto">
 <table id="jobs-table" aria-label="Qualified jobs">
   <thead>
     <tr>
@@ -175,6 +176,7 @@
       {{ sort_link('work_model', 'Model') }}
       {{ sort_link('company_stage', 'Stage') }}
       <th>Comp</th>
+      <th class="col-since-posted">Since Posted</th>
       {{ sort_link('status', 'Status') }}
       <th>JD</th>
       <th></th>
@@ -183,7 +185,7 @@
   <tbody>
     {% if not jobs %}
     <tr id="no-jobs-row">
-      <td colspan="11">No jobs found — run the pipeline or adjust filters.</td>
+      <td colspan="12">No jobs found — run the pipeline or adjust filters.</td>
     </tr>
     {% endif %}
     {% for job in jobs %}
@@ -241,15 +243,24 @@
           <span style="color:var(--text-ghost)">·</span>
         {% endif %}
       </td>
+      <td class="col-since-posted">
+        {% if job.days_since_posted is not none %}
+          {{ job.days_since_posted }}d
+        {% else %}
+          <span style="color:var(--text-ghost)">—</span>
+        {% endif %}
+      </td>
       <td data-no-expand>
         <select class="status-select"
                 data-hash-id="{{ job.hash_id }}"
                 data-previous="{{ job.status }}"
                 aria-label="Job status for {{ job.title }}">
-          <option value="new"      {% if job.status == 'new'      %}selected{% endif %}>New</option>
-          <option value="reviewed" {% if job.status == 'reviewed' %}selected{% endif %}>Reviewed</option>
-          <option value="applied"  {% if job.status == 'applied'  %}selected{% endif %}>Applied</option>
-          <option value="rejected" {% if job.status == 'rejected' %}selected{% endif %}>Rejected</option>
+          <option value="new"          {% if job.status == 'new'          %}selected{% endif %}>New</option>
+          <option value="reviewed"     {% if job.status == 'reviewed'     %}selected{% endif %}>Reviewed</option>
+          <option value="applied"      {% if job.status == 'applied'      %}selected{% endif %}>Applied</option>
+          <option value="rejected"     {% if job.status == 'rejected'     %}selected{% endif %}>Rejected</option>
+          <option value="not_a_fit"    {% if job.status == 'not_a_fit'    %}selected{% endif %}>Not a Fit</option>
+          <option value="not_available"{% if job.status == 'not_available'%}selected{% endif %}>Not Available</option>
         </select>
       </td>
       <td data-no-expand>
@@ -423,7 +434,6 @@
     {% endfor %}
   </tbody>
 </table>
-</div>
 
 <p id="no-match-msg" style="color:var(--text-muted);padding:16px" hidden>
   No jobs match this threshold. Drag left to see more.
@@ -447,8 +457,9 @@
 {% block scripts %}
 <div id="rs-page-config" hidden
      data-threshold="{{ threshold }}"
-     data-total-jobs="{{ total_counts.get('new', 0) + total_counts.get('reviewed', 0) + total_counts.get('applied', 0) + total_counts.get('rejected', 0) }}"
+     data-total-jobs="{{ total_counts.get('new', 0) + total_counts.get('reviewed', 0) + total_counts.get('applied', 0) + total_counts.get('rejected', 0) + total_counts.get('not_a_fit', 0) + total_counts.get('not_available', 0) }}"
      data-watchlist="{{ watchlist_initial | tojson | e }}"
-     data-donotapply="{{ donotapply_initial | tojson | e }}"></div>
+     data-donotapply="{{ donotapply_initial | tojson | e }}"
+     data-donotapply-locked="{{ locked_initial | tojson | e }}"></div>
 <script src="{{ url_for('static', filename='js/init.js') }}"></script>
 {% endblock %}

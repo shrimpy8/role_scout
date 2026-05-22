@@ -687,7 +687,7 @@ paths:
               properties:
                 status:
                   type: string
-                  enum: [new, reviewed, applied, rejected]
+                  enum: [new, reviewed, applied, rejected, not_a_fit, not_available]
             example: { status: "reviewed" }
       responses:
         "200":
@@ -814,6 +814,8 @@ paths:
       description: |
         Returns all companies blocked from appearing in discovery results.
         Matching is case-insensitive at the pipeline level.
+        The `locked` array contains companies set via `DONOTAPPLY_COMPANIES` in
+        `.env` — they are read-only in the dashboard (cannot be removed via API).
       responses:
         "200":
           description: Current do-not-apply list
@@ -821,13 +823,19 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [donotapply]
+                required: [donotapply, locked]
                 properties:
                   donotapply:
                     type: array
                     items: { type: string }
+                    description: User-managed list (YAML-backed, editable)
+                  locked:
+                    type: array
+                    items: { type: string }
+                    description: Env-seeded list (read-only)
               example:
                 donotapply: ["Amazon", "Meta"]
+                locked: ["Google", "Microsoft"]
         "500":
           description: |
             Possible error codes:

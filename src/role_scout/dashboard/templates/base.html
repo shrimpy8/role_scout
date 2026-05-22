@@ -124,7 +124,7 @@
 
     /* ── Page body layout ────────────────────────────────────────────── */
     #rs-page {
-      display: flex; min-height: calc(100vh - var(--topbar-h));
+      display: flex; height: calc(100vh - var(--topbar-h)); overflow: hidden;
     }
 
     /* ── Sidebar ─────────────────────────────────────────────────────── */
@@ -166,7 +166,7 @@
     #rs-main {
       flex: 1; min-width: 0;
       padding: 0;
-      overflow-x: auto;
+      overflow-x: auto; overflow-y: auto; height: 100%;
     }
     #rs-toolbar {
       padding: 10px 16px; font-size: 13px;
@@ -183,7 +183,7 @@
       width: 100%; border-collapse: collapse; font-size: 13px;
     }
     #jobs-table thead th {
-      position: sticky; top: var(--topbar-h);
+      position: sticky; top: 0;
       background: var(--bg-surface); z-index: 10;
       padding: 8px 10px; text-align: left;
       border-bottom: 2px solid var(--border-strong);
@@ -229,6 +229,9 @@
       background: #ede9fe; color: #5b21b6;
     }
     [data-theme="dark"] .stage-pill { background: #2e1f6e; color: #c4b5fd; }
+
+    /* ── Since posted column ────────────────────────────────────────── */
+    .col-since-posted { width: 65px; text-align: right; color: var(--text-muted); white-space: nowrap; }
 
     /* ── Compensation ────────────────────────────────────────────────── */
     .comp-visible { color: var(--text-primary); font-weight: 500; }

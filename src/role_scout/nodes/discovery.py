@@ -11,7 +11,7 @@ from role_scout.compat.models import CandidateProfile, NormalizedJob
 from role_scout.compat.pipeline.dedup import dedup_jobs
 from role_scout.compat.pipeline.normalize import normalize_jobs
 from role_scout.config import Settings
-from role_scout.dal.donotapply_dal import get_excluded_set
+from role_scout.dal.donotapply_dal import get_full_excluded_set
 from role_scout.dal.run_log_dal import write_source_health
 from role_scout.db import get_rw_conn
 from role_scout.fetchers.google_wrapper import run_google
@@ -159,7 +159,7 @@ def discovery_node(state: JobSearchState) -> dict[str, Any]:
         bound_log.warning("discovery_partial_forced", failed=failed_count)
 
     # --- Do-not-apply exclusion list (load once, used at two filter points) ---
-    excluded = get_excluded_set(settings.DONOTAPPLY_PATH)
+    excluded = get_full_excluded_set(settings.DONOTAPPLY_PATH, settings.DONOTAPPLY_COMPANIES)
     if excluded:
         bound_log.info("donotapply_loaded", count=len(excluded))
 

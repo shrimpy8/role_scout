@@ -27,7 +27,7 @@ _PAGINATION_MAX_LIMIT = 50
 _PAGINATION_DEFAULT_LIMIT = 10
 _JOBS_LISTING_LIMIT = 200
 _MAX_COMPANY_NAME_LENGTH = 100
-_VALID_STATUSES = {"new", "reviewed", "applied", "rejected"}
+_VALID_STATUSES = {"new", "reviewed", "applied", "rejected", "not_a_fit", "not_available"}
 _VALID_SORT_COLS = {"match_pct", "company", "title", "city", "work_model", "company_stage", "status", "scored_at"}
 _VALID_DIRS = {"asc", "desc"}
 
@@ -470,13 +470,14 @@ def watchlist_remove(company: str):
 
 @bp.route("/api/donotapply", methods=["GET"])
 def donotapply_get():
-    """Return the current do-not-apply list."""
+    """Return YAML-managed and env-locked do-not-apply lists separately."""
     try:
         current = donotapply_dal.get_donotapply()
     except Exception:
         log.exception("donotapply_get.error")
         return jsonify({"error": {"code": "DONOTAPPLY_READ_ERROR", "message": "Failed to read do-not-apply list", "details": []}}), 500
-    return jsonify_ok({"donotapply": current}), 200
+    locked = donotapply_dal.get_locked_list(Settings().DONOTAPPLY_COMPANIES)
+    return jsonify_ok({"donotapply": current, "locked": locked}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -656,7 +657,7 @@ def index():
 
     # Parse and validate query params
     active_status = request.args.get("status", "new")
-    if active_status not in {"new", "reviewed", "applied", "rejected", "history", "all"}:
+    if active_status not in {"new", "reviewed", "applied", "rejected", "not_a_fit", "not_available", "history", "all"}:
         active_status = "new"
 
     active_source: str | None = request.args.get("source")
@@ -713,6 +714,8 @@ def index():
             d["started_at_display"] = d.get("started_at", "")
         run_history.append(d)
 
+    today = datetime.now(UTC).date()
+
     # Convert ScoredJob objects to dicts for template
     jobs: list[dict[str, Any]] = []
     for job in jobs_raw:
@@ -725,14 +728,27 @@ def index():
                 jd["jd_alignment_parsed"] = None
         else:
             jd["jd_alignment_parsed"] = None
+        # Compute days since posting (None when posted_date is absent or unparseable)
+        jd["days_since_posted"] = None
+        raw_date = jd.get("posted_date")
+        if raw_date:
+            try:
+                posted = datetime.fromisoformat(str(raw_date)).date()
+                jd["days_since_posted"] = (today - posted).days
+            except (ValueError, TypeError):
+                pass
         jobs.append(jd)
 
     # Add "all active" count
     total_counts["all"] = total_counts.get("new", 0) + total_counts.get("reviewed", 0)
-    total_counts["history"] = total_counts.get("applied", 0) + total_counts.get("rejected", 0)
+    total_counts["history"] = (
+        total_counts.get("applied", 0) + total_counts.get("rejected", 0)
+        + total_counts.get("not_a_fit", 0) + total_counts.get("not_available", 0)
+    )
 
     watchlist = watchlist_dal.get_watchlist()
     donotapply = donotapply_dal.get_donotapply()
+    locked = donotapply_dal.get_locked_list(settings.DONOTAPPLY_COMPANIES)
 
     return render_template(
         "index.html",
@@ -748,4 +764,5 @@ def index():
         watchlist=[c.lower() for c in watchlist],  # lowercased for Jinja star check
         watchlist_initial=watchlist,               # original casing for JS sidebar panel
         donotapply_initial=donotapply,
+        locked_initial=locked,
     )

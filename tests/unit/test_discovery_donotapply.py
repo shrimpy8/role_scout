@@ -44,7 +44,7 @@ class TestDonotapplyFiltering:
             patch("role_scout.nodes.discovery.run_trueup", return_value=([], {})),
             patch("role_scout.nodes.discovery.normalize_jobs", return_value=normalized_jobs),
             patch("role_scout.nodes.discovery.dedup_jobs", return_value=deduped),
-            patch("role_scout.nodes.discovery.get_excluded_set", return_value=excluded),
+            patch("role_scout.nodes.discovery.get_full_excluded_set", return_value=excluded),
             patch("role_scout.nodes.discovery.get_rw_conn"),
             patch("role_scout.nodes.discovery._persist_health"),
         ):
@@ -82,3 +82,12 @@ class TestDonotapplyFiltering:
         excluded = frozenset({"acme"})
         result = self._run_discovery(jobs, excluded, deduped=[])
         assert result["new_jobs"] == []
+
+    def test_env_seeded_company_is_excluded(self) -> None:
+        """get_full_excluded_set merges YAML + env; env-only companies are excluded too."""
+        from role_scout.dal.donotapply_dal import get_full_excluded_set
+
+        excluded = get_full_excluded_set(None, "BadCo, EvilCorp")
+        assert "badco" in excluded
+        assert "evilcorp" in excluded
+        assert "safeco" not in excluded

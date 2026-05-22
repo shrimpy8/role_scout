@@ -7,6 +7,7 @@
     totalJobs: parseInt(el.getAttribute('data-total-jobs'), 10) || 0,
     watchlist: JSON.parse(el.getAttribute('data-watchlist') || '[]'),
     donotapply: JSON.parse(el.getAttribute('data-donotapply') || '[]'),
+    donotapplyLocked: JSON.parse(el.getAttribute('data-donotapply-locked') || '[]'),
     csrfToken: (document.querySelector('meta[name="csrf-token"]') || {}).content || '',
   };
 })();

@@ -185,6 +185,7 @@ All runtime configuration lives in `.env`. No values are hardcoded.
 | `LANGSMITH_API_KEY` | — | Required when `LANGSMITH_TRACING=true` |
 | `LANGSMITH_PROJECT` | `role_scout` | LangSmith project name |
 | `FLASK_SECRET_KEY` | — | Required for Flask session/CSRF (generate with `python -c "import secrets; print(secrets.token_hex(32))"`) |
+| `DONOTAPPLY_COMPANIES` | `""` | Comma-separated list of companies to always exclude from discovery (e.g. `"Google,Amazon,Meta"`). Shown as read-only locked entries in the dashboard do-not-apply panel. |
 
 ### Candidate profile and watchlist
 

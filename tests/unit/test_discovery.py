@@ -188,6 +188,7 @@ class TestPartialFailureCircuitBreaker:
         settings_mock.IMAP_APP_PASSWORD = "pw"
         settings_mock.DB_PATH = ":memory:"
         settings_mock.DONOTAPPLY_PATH = None
+        settings_mock.DONOTAPPLY_COMPANIES = ""
 
         with (
             patch("role_scout.nodes.discovery.Settings", return_value=settings_mock),

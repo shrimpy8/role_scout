@@ -110,7 +110,7 @@ def get_qualified_jobs(
     params: list[Any] = []
 
     if status == "history":
-        conditions.append("status IN ('applied','rejected')")
+        conditions.append("status IN ('applied','rejected','not_a_fit','not_available')")
     elif status != "all":
         conditions.append("status = ?")
         params.append(status)
@@ -152,7 +152,7 @@ def get_job_count_by_status(conn: sqlite3.Connection) -> dict[str, int]:
     rows = conn.execute(
         "SELECT status, COUNT(*) as cnt FROM qualified_jobs GROUP BY status"
     ).fetchall()
-    counts = {"new": 0, "reviewed": 0, "applied": 0, "rejected": 0}
+    counts = {"new": 0, "reviewed": 0, "applied": 0, "rejected": 0, "not_a_fit": 0, "not_available": 0}
     for row in rows:
         counts[row["status"]] = row["cnt"]
     counts["total"] = sum(counts.values())

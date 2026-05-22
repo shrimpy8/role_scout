@@ -43,7 +43,7 @@ class TestDedup:
                 with patch("role_scout.nodes.discovery.get_rw_conn", side_effect=RuntimeError("db locked")):
                     with patch("role_scout.nodes.discovery.Settings"):
                         with patch("role_scout.nodes.discovery._persist_health"):
-                            with patch("role_scout.nodes.discovery.get_excluded_set", return_value=frozenset()):
+                            with patch("role_scout.nodes.discovery.get_full_excluded_set", return_value=frozenset()):
                                 result = discovery_node(state)
 
         assert result.get("cancel_reason") == "dedup_failed"
@@ -63,7 +63,7 @@ class TestDedup:
                 with patch("role_scout.nodes.discovery.get_rw_conn", side_effect=sqlite3.OperationalError("locked")):
                     with patch("role_scout.nodes.discovery.Settings"):
                         with patch("role_scout.nodes.discovery._persist_health"):
-                            with patch("role_scout.nodes.discovery.get_excluded_set", return_value=frozenset()):
+                            with patch("role_scout.nodes.discovery.get_full_excluded_set", return_value=frozenset()):
                                 result = discovery_node(state)
 
         assert result.get("cancel_reason") == "dedup_failed"
@@ -87,7 +87,7 @@ class TestDedup:
                     with patch("role_scout.nodes.discovery.get_rw_conn", return_value=mock_conn):
                         with patch("role_scout.nodes.discovery.Settings"):
                             with patch("role_scout.nodes.discovery._persist_health"):
-                                with patch("role_scout.nodes.discovery.get_excluded_set", return_value=frozenset()):
+                                with patch("role_scout.nodes.discovery.get_full_excluded_set", return_value=frozenset()):
                                     result = discovery_node(state)
 
         assert result.get("new_jobs_count") == 3
@@ -103,9 +103,11 @@ class TestDedup:
             ("google", [], {}, 0.1, "google error"),
             ("trueup", [], {}, 0.1, "trueup error"),
         ]):
-            with patch("role_scout.nodes.discovery.Settings"):
+            with patch("role_scout.nodes.discovery.Settings") as mock_settings_cls:
+                mock_settings_cls.return_value.DONOTAPPLY_PATH = None
+                mock_settings_cls.return_value.DONOTAPPLY_COMPANIES = ""
                 with patch("role_scout.nodes.discovery._persist_health"):
-                    with patch("role_scout.nodes.discovery.get_excluded_set", return_value=frozenset()):
+                    with patch("role_scout.nodes.discovery.get_full_excluded_set", return_value=frozenset()):
                         with patch("role_scout.nodes.discovery.dedup_jobs") as mock_dedup:
                             result = discovery_node(state)
 

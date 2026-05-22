@@ -2,6 +2,7 @@
   'use strict';
 
   var donotapply = [];
+  var locked = [];
 
   function csrfToken() {
     var el = document.querySelector('meta[name="csrf-token"]');
@@ -21,17 +22,25 @@
   function renderList() {
     var container = document.getElementById('donotapply-list');
     if (!container) return;
-    if (donotapply.length === 0) {
+    var lockedItems = locked.map(function (c) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+        '<span style="font-size:12px;color:var(--text-muted)">' + escHtml(c) + '</span>' +
+        '<span style="font-size:11px;color:var(--text-faint);padding:0 4px" title="Set via DONOTAPPLY_COMPANIES in .env">🔒</span>' +
+        '</div>';
+    });
+    var userItems = donotapply.map(function (c) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+        '<span style="font-size:12px">' + escHtml(c) + '</span>' +
+        '<button class="dna-remove" data-company="' + escAttr(c) + '" ' +
+        'style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:0 4px" ' +
+        'aria-label="Remove ' + escAttr(c) + ' from do-not-apply list">×</button>' +
+        '</div>';
+    });
+    var all = lockedItems.concat(userItems);
+    if (all.length === 0) {
       container.innerHTML = '<div style="font-size:12px;color:var(--text-faint)">No excluded companies yet.</div>';
     } else {
-      container.innerHTML = donotapply.map(function (c) {
-        return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
-          '<span style="font-size:12px">' + escHtml(c) + '</span>' +
-          '<button class="dna-remove" data-company="' + escAttr(c) + '" ' +
-          'style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:0 4px" ' +
-          'aria-label="Remove ' + escAttr(c) + ' from do-not-apply list">×</button>' +
-          '</div>';
-      }).join('');
+      container.innerHTML = all.join('');
       container.querySelectorAll('.dna-remove').forEach(function (btn) {
         btn.addEventListener('click', function () { removeCompany(btn.dataset.company); });
       });
@@ -66,6 +75,7 @@
         return;
       }
       donotapply = data.donotapply || donotapply;
+      if (Array.isArray(data.locked)) locked = data.locked;
       renderList();
     } catch (_) {
       donotapply = donotapply.filter(function (c) { return c !== company; });
@@ -92,6 +102,7 @@
         return;
       }
       donotapply = data.donotapply || donotapply;
+      if (Array.isArray(data.locked)) locked = data.locked;
       renderList();
     } catch (_) {
       donotapply = prev;
@@ -103,6 +114,9 @@
   function init() {
     if (window.RS_CONFIG && Array.isArray(window.RS_CONFIG.donotapply)) {
       donotapply = window.RS_CONFIG.donotapply.slice();
+    }
+    if (window.RS_CONFIG && Array.isArray(window.RS_CONFIG.donotapplyLocked)) {
+      locked = window.RS_CONFIG.donotapplyLocked.slice();
     }
 
     var addBtn = document.getElementById('donotapply-add-btn');

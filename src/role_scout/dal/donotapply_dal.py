@@ -71,6 +71,21 @@ def get_excluded_set(path: Path | None = DEFAULT_DONOTAPPLY_PATH) -> frozenset[s
     return frozenset(c.lower() for c in get_donotapply(path))
 
 
+def get_locked_set(env_csv: str) -> frozenset[str]:
+    """Parse DONOTAPPLY_COMPANIES env var into a lowercased frozenset."""
+    return frozenset(c.strip().lower() for c in env_csv.split(",") if c.strip())
+
+
+def get_locked_list(env_csv: str) -> list[str]:
+    """Parse DONOTAPPLY_COMPANIES env var into a sorted list (original casing preserved)."""
+    return sorted({c.strip() for c in env_csv.split(",") if c.strip()})
+
+
+def get_full_excluded_set(path: Path | None, env_csv: str) -> frozenset[str]:
+    """Union of YAML-managed list and env-seeded list. Used by the pipeline."""
+    return get_excluded_set(path) | get_locked_set(env_csv)
+
+
 def _atomic_write(path: Path, companies: list[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = yaml.dump({"companies": companies}, default_flow_style=False, allow_unicode=True)
