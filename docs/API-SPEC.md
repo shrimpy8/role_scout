@@ -34,6 +34,7 @@
 | 13 | GET | `/api/donotapply` | Get current do-not-apply company list |
 | 14 | POST | `/api/donotapply` | Add a company to the do-not-apply list |
 | 15 | DELETE | `/api/donotapply/{company}` | Remove a company from the do-not-apply list |
+| 16 | GET | `/api/jd/download-reviewed-zip` | Download all reviewed JDs as a ZIP file |
 
 ### 1.2 Versioning — no `/v1/` prefix
 
@@ -942,6 +943,31 @@ paths:
             Possible error codes:
             - NOT_FOUND — file does not exist in output/jds/
 
+  /api/jd/download-reviewed-zip:
+    get:
+      summary: Download all reviewed JDs as a ZIP
+      description: |
+        Builds a ZIP in-memory containing one .txt file per reviewed job that has
+        JD text (from disk file or DB description). Always includes manifest.txt
+        summarising included jobs and any that had no JD stored.
+        No CSRF required (read-only GET). Download is synchronous.
+      responses:
+        "200":
+          description: ZIP file stream
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: |
+            Possible error codes:
+            - NO_REVIEWED_JOBS — no jobs with status='reviewed' found
+        "500":
+          description: |
+            Possible error codes:
+            - DB_ERROR — failed to query reviewed jobs
+
 security:
   - {}     # Most endpoints require no auth (localhost-only); CSRF is applied per-route
 ```
@@ -971,6 +997,7 @@ All 2xx-supported endpoints may additionally return generic 5xx with `INTERNAL_E
 | `GET /api/donotapply` | — | `DONOTAPPLY_READ_ERROR`, `INTERNAL_ERROR` |
 | `POST /api/donotapply` | `CSRF_INVALID`, `VALIDATION_ERROR` | `DONOTAPPLY_WRITE_ERROR`, `INTERNAL_ERROR` |
 | `DELETE /api/donotapply/{company}` | `CSRF_INVALID`, `NOT_FOUND` | `DONOTAPPLY_WRITE_ERROR`, `INTERNAL_ERROR` |
+| `GET /api/jd/download-reviewed-zip` | `NO_REVIEWED_JOBS` | `DB_ERROR`, `INTERNAL_ERROR` |
 
 ---
 

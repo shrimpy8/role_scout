@@ -5,15 +5,17 @@ All write routes require CSRF token (Flask-WTF).
 """
 from __future__ import annotations
 
+import io
 import json
 import re
 import uuid
+import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import structlog
-from flask import Blueprint, g, jsonify, request, send_from_directory
+from flask import Blueprint, Response, g, jsonify, request, send_file, send_from_directory
 
 from role_scout.config import Settings
 from role_scout.dal import donotapply_dal, watchlist_dal
@@ -300,7 +302,6 @@ def jd_download_by_hash(hash_id: str):
     url_header = f"Job Posting URL: {job.url}\n{'=' * 60}\n\n" if job.url else ""
     combined = url_header + jd_content
 
-    from flask import Response
     return Response(
         combined,
         mimetype="text/plain",
@@ -327,6 +328,117 @@ def jd_download(filename: str):
         return jsonify({"error": {"code": "NOT_FOUND", "message": "JD file not found", "details": []}}), 404
 
     return send_from_directory(str(jd_dir), filename, as_attachment=True, mimetype="text/plain")
+
+
+# ---------------------------------------------------------------------------
+# GET /api/jd/download-reviewed-zip  — bulk ZIP of all reviewed JDs
+# ---------------------------------------------------------------------------
+
+def _reviewed_zip_entry_name(job: Any) -> str:
+    """Build a safe per-job filename for use inside the ZIP."""
+    company = _safe_filename_part(job.company or "Unknown")[:30]
+    title = _safe_filename_part(job.title or "Unknown")[:40]
+    return f"{company}_{title}_{job.hash_id[:8]}.txt"
+
+
+def _build_reviewed_zip_manifest(
+    included: list[tuple[Any, str]],
+    missing: list[Any],
+    generated_at: str,
+) -> str:
+    total = len(included) + len(missing)
+    lines = [
+        "Role Scout — Reviewed JDs",
+        f"Generated : {generated_at}",
+        f"Total reviewed : {total}  |  Included in ZIP : {len(included)}  |  Not available : {len(missing)}",
+        "",
+    ]
+    if included:
+        lines += [f"INCLUDED ({len(included)})", "=" * 60]
+        for i, (job, fname) in enumerate(included, 1):
+            comp_range = job.comp_range or "—"
+            city = job.city or job.location or "—"
+            lines += [
+                f" {i:3d}. {fname}",
+                f"       Company  : {job.company}",
+                f"       Role     : {job.title}",
+                f"       Location : {city}  |  Model : {job.work_model}  |  Match : {job.match_pct}%  |  Comp : {comp_range}",
+                f"       URL      : {job.url or '—'}",
+                "",
+            ]
+    if missing:
+        lines += [f"NOT AVAILABLE ({len(missing)})", "=" * 60]
+        for i, job in enumerate(missing, 1):
+            city = job.city or job.location or "—"
+            lines += [
+                f" {i:3d}. {job.company}  |  {job.title}  |  {city}  |  {job.work_model}  |  {job.match_pct}%",
+                f"       URL    : {job.url or '—'}",
+                f"       Reason : No JD text stored",
+                "",
+            ]
+    return "\n".join(lines)
+
+
+@bp.route("/api/jd/download-reviewed-zip", methods=["GET"])
+def jd_download_reviewed_zip():
+    """Build and stream a ZIP of all reviewed jobs' JDs.
+
+    Each file is Company_Role_hashid8.txt.  A manifest.txt summarises what
+    was included and what was unavailable.  No CSRF required (read-only GET).
+    """
+    from role_scout.compat.db.qualified_jobs import get_qualified_jobs
+
+    settings = Settings()
+    try:
+        with ro_conn(settings.DB_PATH) as conn:
+            jobs = get_qualified_jobs(conn, status="reviewed", limit=200)
+    except Exception:
+        log.exception("jd_zip_db_error")
+        return jsonify({"error": {"code": "DB_ERROR", "message": "Failed to load reviewed jobs", "details": []}}), 500
+
+    if not jobs:
+        return jsonify({"error": {"code": "NO_REVIEWED_JOBS", "message": "No reviewed jobs found", "details": []}}), 404
+
+    jd_dir = (Path(settings.DB_PATH).parent / "jds").resolve()
+    included: list[tuple[Any, str]] = []
+    missing: list[Any] = []
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for job in jobs:
+            content: str | None = None
+            entry_name = _reviewed_zip_entry_name(job)
+
+            if job.jd_filename:
+                candidate = (jd_dir / job.jd_filename).resolve()
+                if str(candidate).startswith(str(jd_dir) + "/") and candidate.is_file():
+                    try:
+                        content = candidate.read_text(encoding="utf-8", errors="replace")
+                    except OSError:
+                        pass
+
+            if content is None and job.description:
+                content = job.description
+
+            if content:
+                url_header = f"Job Posting URL: {job.url}\n{'=' * 60}\n\n" if job.url else ""
+                zf.writestr(entry_name, url_header + content)
+                included.append((job, entry_name))
+            else:
+                missing.append(job)
+
+        generated_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
+        zf.writestr("manifest.txt", _build_reviewed_zip_manifest(included, missing, generated_at))
+
+    log.info("jd_zip_built", included=len(included), missing=len(missing))
+    buf.seek(0)
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    return send_file(
+        buf,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"reviewed_jds_{today}.zip",
+    )
 
 
 # ---------------------------------------------------------------------------

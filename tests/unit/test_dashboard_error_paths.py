@@ -1,7 +1,10 @@
 """Tests for dashboard route error paths — hash validation, path traversal, DELETE 404."""
 from __future__ import annotations
 
+import io
 import sqlite3
+import zipfile
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -171,3 +174,112 @@ class TestJdDownload:
         with patch(self._JD_LOOKUP, return_value=None):
             resp = client.get(f"/api/jd/download/{self._VALID_HASH}")
         assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Bulk reviewed-JDs ZIP download
+# ---------------------------------------------------------------------------
+
+def _make_reviewed_job(
+    company: str = "Acme Corp",
+    title: str = "Engineer",
+    description: str | None = "Full JD text here.",
+    jd_filename: str | None = None,
+) -> MagicMock:
+    job = MagicMock()
+    job.hash_id = "a" * 16
+    job.company = company
+    job.title = title
+    job.description = description
+    job.jd_filename = jd_filename
+    job.city = "Remote"
+    job.location = "Remote"
+    job.work_model = "remote"
+    job.match_pct = 80
+    job.comp_range = None
+    job.url = "https://example.com/job"
+    return job
+
+
+@contextmanager
+def _fake_ro_conn(jobs):
+    """Patch ro_conn and get_qualified_jobs together."""
+    mock_conn = MagicMock()
+    with patch("role_scout.dashboard.routes.ro_conn") as mock_ro:
+        mock_ro.return_value.__enter__ = lambda s: mock_conn
+        mock_ro.return_value.__exit__ = MagicMock(return_value=False)
+        with patch("role_scout.compat.db.qualified_jobs.get_qualified_jobs", return_value=jobs):
+            yield
+
+
+class TestReviewedZipDownload:
+    _ENDPOINT = "/api/jd/download-reviewed-zip"
+    _GET_JOBS = "role_scout.compat.db.qualified_jobs.get_qualified_jobs"
+
+    def _patch(self, jobs, client):
+        mock_conn = MagicMock()
+        with patch("role_scout.dashboard.routes.ro_conn") as mock_ro:
+            mock_ro.return_value.__enter__ = lambda s: mock_conn
+            mock_ro.return_value.__exit__ = MagicMock(return_value=False)
+            with patch(self._GET_JOBS, return_value=jobs):
+                return client.get(self._ENDPOINT)
+
+    def test_returns_zip_with_jd_and_manifest(self, client):
+        job = _make_reviewed_job()
+        resp = self._patch([job], client)
+        assert resp.status_code == 200
+        assert resp.content_type == "application/zip"
+        zf = zipfile.ZipFile(io.BytesIO(resp.data))
+        names = zf.namelist()
+        assert any(n.endswith(".txt") and n != "manifest.txt" for n in names)
+        assert "manifest.txt" in names
+
+    def test_manifest_includes_company_and_role(self, client):
+        job = _make_reviewed_job(company="MegaCorp", title="Staff Eng")
+        resp = self._patch([job], client)
+        zf = zipfile.ZipFile(io.BytesIO(resp.data))
+        manifest = zf.read("manifest.txt").decode()
+        assert "MegaCorp" in manifest
+        assert "Staff Eng" in manifest
+
+    def test_missing_jd_skipped_and_noted_in_manifest(self, client):
+        job = _make_reviewed_job(description=None, jd_filename=None)
+        resp = self._patch([job], client)
+        assert resp.status_code == 200
+        zf = zipfile.ZipFile(io.BytesIO(resp.data))
+        names = zf.namelist()
+        assert names == ["manifest.txt"]
+        manifest = zf.read("manifest.txt").decode()
+        assert "NOT AVAILABLE" in manifest
+
+    def test_mix_included_and_missing(self, client):
+        good = _make_reviewed_job(company="Good Co", description="JD text")
+        bad = _make_reviewed_job(company="Bad Co", description=None)
+        resp = self._patch([good, bad], client)
+        assert resp.status_code == 200
+        zf = zipfile.ZipFile(io.BytesIO(resp.data))
+        jd_files = [n for n in zf.namelist() if n != "manifest.txt"]
+        assert len(jd_files) == 1
+        manifest = zf.read("manifest.txt").decode()
+        assert "INCLUDED (1)" in manifest
+        assert "NOT AVAILABLE (1)" in manifest
+
+    def test_no_reviewed_jobs_returns_404(self, client):
+        resp = self._patch([], client)
+        assert resp.status_code == 404
+        assert resp.get_json()["error"]["code"] == "NO_REVIEWED_JOBS"
+
+    def test_db_error_returns_500(self, client):
+        with patch("role_scout.dashboard.routes.ro_conn", side_effect=Exception("db down")):
+            resp = client.get(self._ENDPOINT)
+        assert resp.status_code == 500
+        assert resp.get_json()["error"]["code"] == "DB_ERROR"
+
+    def test_jd_includes_url_header(self, client):
+        job = _make_reviewed_job(description="JD content", company="UrlCo")
+        resp = self._patch([job], client)
+        zf = zipfile.ZipFile(io.BytesIO(resp.data))
+        jd_file = next(n for n in zf.namelist() if n != "manifest.txt")
+        content = zf.read(jd_file).decode()
+        assert "https://example.com/job" in content
+        assert "JD content" in content
