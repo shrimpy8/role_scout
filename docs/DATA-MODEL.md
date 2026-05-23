@@ -34,7 +34,7 @@ Locked upstream (ADR-16 et al.) — restated here so this doc is self-contained:
 | Primary DB | SQLite with WAL | Single-user local; zero-ops; Phase 1 choice; WAL allows concurrent readers while a writer is active |
 | Cache | DB columns (`tailored_resume`, existing `alignment_cache`) | No Redis; cache is small and tied to rows |
 | File storage | Local filesystem (`output/jds/`) | JDs are small text files; versioned by hash_id |
-| Config storage | `config/*.yaml` files (atomic rename on write) | Human-editable; watchlist needs PM-friendly format |
+| Config storage | `config/*.yaml` files (atomic rename on write via `dal/_yaml_io.py::atomic_write_yaml_list`) | Human-editable; watchlist needs PM-friendly format |
 | Client storage | `sessionStorage` for threshold slider UI state | Non-sensitive UI preference; never persisted server-side |
 | Checkpointer (LangGraph) | `MemorySaver` in-process | 4h TTL auto-cancels stuck runs; SqliteSaver deferred to Phase 3 (ADR-2) |
 
@@ -130,7 +130,21 @@ For each migration statement `S`:
 3. **Index variants use `IF NOT EXISTS`:** idempotent by construction.
 4. **Concurrent init?** Only one process calls `init_db()` at startup; `PRAGMA busy_timeout=5000` absorbs any incidental lock. No cross-process race.
 
-### 3.3 Rollback
+### 3.3 Status CHECK constraint migration
+
+SQLite cannot `ALTER` a CHECK constraint. When `not_a_fit` and `not_available` were added to `qualified_jobs.status`, `init_db()` detects old DBs (via `sqlite_master` DDL inspection) and rebuilds the table with the updated constraint using a backup-swap pattern:
+
+```sql
+CREATE TABLE qualified_jobs_migration_backup AS SELECT * FROM qualified_jobs;
+DROP TABLE qualified_jobs;
+CREATE TABLE qualified_jobs (...status CHECK(status IN ('new','reviewed','applied','rejected','not_a_fit','not_available'))...);
+INSERT INTO qualified_jobs SELECT * FROM qualified_jobs_migration_backup;
+DROP TABLE qualified_jobs_migration_backup;
+```
+
+This runs at most once per DB — the detection check (`"not_a_fit" not in DDL`) is idempotent.
+
+### 3.4 Rollback
 
 **Not supported.** Additive migrations don't require rollback. If a column turns out to be a mistake, leave it in place, stop writing to it, and delete the reader code. No destructive SQL at migration time, ever.
 
@@ -164,7 +178,7 @@ HashId = Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{16}$")]
 RunId = Annotated[str, StringConstraints(pattern=r"^run_[a-f0-9\-]+$")]
 RequestId = Annotated[str, StringConstraints(pattern=r"^req_[a-f0-9]{16}$")]
 CompanyName = Annotated[str, StringConstraints(min_length=1, max_length=100, pattern=r"^[^\n\r]+$")]
-JobStatus = Literal["new", "reviewed", "applied", "rejected"]
+JobStatus = Literal["new", "reviewed", "applied", "rejected", "not_a_fit", "not_available"]
 SourceName = Literal["linkedin", "google", "trueup"]
 RunStatus = Literal["running", "review_pending", "completed", "failed", "cancelled", "cancelled_ttl"]
 TriggerType = Literal["manual", "scheduled", "mcp", "dry_run"]
@@ -516,7 +530,7 @@ class RunsListResponse(BaseSchema):
 | `company` | 1–100 chars, no newline | `core.CompanyName`; path param + request body |
 | `match_pct`, `subscore values` | 0–100 int | `QualifiedJobRow.match_pct`, `PipelineStatusResponse.top_matches[].match_pct` |
 | `threshold` (client-side slider) | 75–95 int (clamped) | Dashboard JS; server never receives |
-| `status` (job) | `new\|reviewed\|applied\|rejected` | `JobStatus` |
+| `status` (job) | `new\|reviewed\|applied\|rejected\|not_a_fit\|not_available` | `JobStatus` |
 | `status` (run) | 6-value enum | `RunStatus` |
 | `trigger_type` | 4-value enum | `TriggerType` |
 | `source` | `linkedin\|google\|trueup` | `SourceName` |

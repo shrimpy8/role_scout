@@ -9,7 +9,7 @@
 | Status | Approved |
 | Updated | 2026-04-27 |
 
-> Implementation-ready OpenAPI 3.1 contract for the 15 Flask routes in the Phase 2 dashboard. All routes bind to `127.0.0.1` only. All write routes require CSRF.
+> Implementation-ready OpenAPI 3.1 contract for the 16 Flask routes in the Phase 2 dashboard. All routes bind to `127.0.0.1` only. All write routes require CSRF.
 
 ---
 
@@ -824,19 +824,26 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [donotapply, locked]
+                required: [data, meta]
                 properties:
-                  donotapply:
-                    type: array
-                    items: { type: string }
-                    description: User-managed list (YAML-backed, editable)
-                  locked:
-                    type: array
-                    items: { type: string }
-                    description: Env-seeded list (read-only)
+                  data:
+                    type: object
+                    required: [donotapply, locked]
+                    properties:
+                      donotapply:
+                        type: array
+                        items: { type: string }
+                        description: User-managed list (YAML-backed, editable)
+                      locked:
+                        type: array
+                        items: { type: string }
+                        description: Env-seeded list (read-only)
+                  meta: { $ref: "#/components/schemas/Meta" }
               example:
-                donotapply: ["Amazon", "Meta"]
-                locked: ["Google", "Microsoft"]
+                data:
+                  donotapply: ["Amazon", "Meta"]
+                  locked: ["Google", "Microsoft"]
+                meta: { request_id: "req_a1b2c3d4e5f60718" }
         "500":
           description: |
             Possible error codes:
@@ -867,11 +874,16 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [donotapply]
+                required: [data, meta]
                 properties:
-                  donotapply:
-                    type: array
-                    items: { type: string }
+                  data:
+                    type: object
+                    required: [donotapply]
+                    properties:
+                      donotapply:
+                        type: array
+                        items: { type: string }
+                  meta: { $ref: "#/components/schemas/Meta" }
         "422":
           description: |
             Possible error codes:
@@ -900,10 +912,15 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [data, meta]
                 properties:
-                  donotapply:
-                    type: array
-                    items: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      donotapply:
+                        type: array
+                        items: { type: string }
+                  meta: { $ref: "#/components/schemas/Meta" }
         "403": { $ref: "#/components/responses/Error403CSRF" }
         "404":
           description: |
@@ -992,7 +1009,7 @@ All 2xx-supported endpoints may additionally return generic 5xx with `INTERNAL_E
 | `GET /api/runs` | `VALIDATION_ERROR` (bad limit/offset) | `INTERNAL_ERROR` |
 | `POST /api/status/{hash_id}` | `CSRF_INVALID`, `INVALID_STATUS`, `NOT_FOUND` | `DB_ERROR`, `INTERNAL_ERROR` |
 | `POST /api/alignment/{hash_id}` | `CSRF_INVALID`, `NO_DESCRIPTION`, `NOT_FOUND` | `RESUME_MISSING`, `PROMPT_MISSING`, `CLAUDE_ERROR`, `PARSE_ERROR`, `INTERNAL_ERROR` |
-| `GET /jds/{filename}` | `INVALID_PATH` | `NOT_FOUND`, `INTERNAL_ERROR` |
+| `GET /jds/{filename}` | `INVALID_PATH`, `NOT_FOUND` | `INTERNAL_ERROR` |
 | `GET /api/jd/download/{hash_id}` | `VALIDATION_ERROR`, `NOT_FOUND` | `INTERNAL_ERROR` |
 | `GET /api/donotapply` | — | `DONOTAPPLY_READ_ERROR`, `INTERNAL_ERROR` |
 | `POST /api/donotapply` | `CSRF_INVALID`, `VALIDATION_ERROR` | `DONOTAPPLY_WRITE_ERROR`, `INTERNAL_ERROR` |

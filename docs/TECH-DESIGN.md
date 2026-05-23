@@ -314,7 +314,7 @@ Single-user localhost app. No user accounts. Auth = "did the request come from l
 
 ## 5. Infrastructure
 
-### 5.1 Configuration (`role_scout/settings.py` — `pydantic-settings`)
+### 5.1 Configuration (`role_scout/config.py` — `pydantic-settings`)
 
 | Variable | Type | Required | Default | Sensitive |
 |----------|------|----------|---------|-----------|
@@ -322,8 +322,10 @@ Single-user localhost app. No user accounts. Auth = "did the request come from l
 | `OPENAI_API_KEY` OR `GOOGLE_API_KEY` | str | yes (for eval) | — | ✓ |
 | `SERPAPI_KEY` | str | yes | — | ✓ |
 | `APIFY_TOKEN` | str | yes | — | ✓ |
-| `IMAP_EMAIL` / `IMAP_APP_PASSWORD` | str | yes (for trueup) | — | ✓ |
-| `SCORE_THRESHOLD` | int | no | 85 | ✗ |
+| `IMAP_USER` / `IMAP_PASSWORD` | str | yes (for trueup) | — | ✓ |
+| `SCORE_THRESHOLD` | int | no | 70 | ✗ |
+| `TRUEUP_MAX_EMAILS` | int | no | 3 | ✗ |
+| `DONOTAPPLY_COMPANIES` | str | no | `""` | ✗ |
 | `REFLECTION_ENABLED` | bool | no | true | ✗ |
 | `RUN_MODE` | `linear\|agentic\|shadow` | no | shadow (for first 2 wks) | ✗ |
 | `MAX_COST_USD` | float | no | 5.00 | ✗ |

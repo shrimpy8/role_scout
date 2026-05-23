@@ -228,7 +228,7 @@ Expose pipeline as Claude Code tools via stdio. `role_scout/mcp_server/server.py
 | `get_job_detail` | `hash_id: str` | `JobDetail` (full record + JD text) | `get_job_by_hash_id()` DAL |
 | `analyze_job` | `hash_id: str, force: bool = False` | `AlignmentResult` | `run_alignment()` (Phase 1) |
 | `tailor_resume` | `hash_id: str, force: bool = False` | `TailoredResume` | `tailor_resume()` (F4) |
-| `update_job_status` | `hash_id: str, status: Literal["new","reviewed","applied","rejected"]` | `{ ok: bool }` | `update_job_status()` DAL |
+| `update_job_status` | `hash_id: str, status: Literal["new","reviewed","applied","rejected","not_a_fit","not_available"]` | `{ ok: bool }` | `update_job_status()` DAL |
 | `get_run_history` | `limit: int = 5` | `list[RunLogEntry]` (includes cost, token counts) | `get_run_logs()` DAL |
 | `get_watchlist` | (none) | `list[str]` | Reads `watchlist.yaml` |
 | `manage_watchlist` | `action: Literal["add","remove"], company: str` | `{ ok: bool, watchlist: list[str] }` | Write `watchlist.yaml` (atomic via tempfile+rename) |
@@ -532,6 +532,14 @@ See [EXP-BRIEF](./EXP-BRIEF.md).
 ---
 
 ## 8. F7 — Discovery Improvements
+
+### 8.0 Do-Not-Apply Exclusion
+
+Before deduplication, `discovery_node` filters out any job whose company matches an entry in the combined exclusion set built from:
+1. `config/donotapply.yaml` — user-managed list editable via the dashboard
+2. `DONOTAPPLY_COMPANIES` env var — comma-separated companies seeded at startup (read-only in dashboard)
+
+Matching is case-insensitive. Env-seeded entries appear as "locked" in the do-not-apply panel and cannot be removed via API. This exclusion runs before scoring so filtered companies never consume Claude API budget.
 
 ### 8.1 Source Health Tracking
 

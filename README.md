@@ -52,7 +52,7 @@ Role Scout is a single self-contained repository. Phase 1 (the linear fetch-norm
 | **normalize** | Deduplicates and normalises raw listings; trims raw_by_source from state |
 | **enrichment** | Fetches full job descriptions where needed |
 | **scoring** | Sends enriched jobs to Claude in batches of 10. Each job gets a `match_pct` (0–100) and per-dimension subscores against your candidate profile. Before the first batch starts, checks whether Claude API spend so far in this run has already exceeded `MAX_COST_USD` (set in `.env`, default $5.00 — a safety cap you control) and cancels the run if so. |
-| **reflection** | For every job that scored in the borderline band (75–89%), sends a second Claude call with the original score and subscores and asks it to check for internal inconsistencies. Scores may move up or down; jobs that clear the qualify threshold after reflection are promoted to qualified. Skipped entirely if no borderline jobs exist. |
+| **reflection** | For every job that scored in the borderline band (70–89%), sends a second Claude call with the original score and subscores and asks it to check for internal inconsistencies. Scores may move up or down; jobs that clear the qualify threshold after reflection are promoted to qualified. Skipped entirely if no borderline jobs exist. |
 | **review** | Issues a LangGraph `interrupt()` that suspends the graph and waits for a human decision. Scheduled and MCP-triggered runs bypass this and auto-approve. Manual runs surface an Approve / Cancel banner in the dashboard (or a CLI prompt). If no decision arrives within `INTERRUPT_TTL_HOURS` (default 4 h) the TTL watcher resumes the graph with `cancel_reason=ttl_expired`. |
 | **output** | Terminal node — always runs regardless of approval or cancellation. On approval: inserts qualified jobs into `qualified_jobs`, writes each job description to `output/jds/<hash_id>.txt`, and records the completed run (token counts, cost, source health) in `run_log`. On cancellation: records the cancel reason in `run_log` and exits. Dry-run mode skips all writes. |
 
@@ -66,9 +66,9 @@ Role Scout is a single self-contained repository. Phase 1 (the linear fetch-norm
 
 ![Dashboard — Qualified Roles](screenshots/DashboardShowingQualifiedRoles.png)
 
-- Qualified jobs table with 11 columns: title, company, location, work model, stage, comp, score, source, status, external link, tailor
+- Qualified jobs table with 12 columns: title, company, location, work model, stage, comp, score, source, since posted, status, external link, tailor
 - Sortable columns — click any header to toggle ascending/descending; active sort and direction preserved in URL
-- Sidebar status filters: New / Reviewed / Applied / Rejected / All Active / History with live per-status counts
+- Sidebar status filters: New / Reviewed / Applied / Rejected / Not a Fit / Not Available / All Active / History with live per-status counts
 - Sidebar source filters: All / LinkedIn / Google Jobs / TrueUp
 - Threshold slider — **display filter only**, never re-scores; hides rows below the chosen match %
 - Expandable detail rows with animated SVG score ring, per-dimension score bars (Seniority / Domain / Location / Stage / Comp), and Claude's scoring reasoning
@@ -78,6 +78,7 @@ Role Scout is a single self-contained repository. Phase 1 (the linear fetch-norm
 ![Role Detail — JD Alignment & Resume Tailor](screenshots/RoleDetails_JDAlignment_ResumeTailor.png)
 - Inline status updates — dropdown per row; changes persist immediately to the DB without a page reload
 - JD download button (↓) per row: downloads the full job description as a plain-text file (served from DB; no separate file required)
+- Download Reviewed JDs button (↓ Reviewed JDs): downloads a ZIP containing all reviewed jobs' JDs as .txt files plus a manifest; jobs with no stored description are noted in the manifest
 - JD alignment panel: one-click Claude analysis of strong matches, reframing opportunities, and genuine gaps vs. your resume; cached in the DB per job
 - Work model pills (Remote / Hybrid / On-site) and stage pills (Seed / Series A–D / Public / Acquired)
 - Watchlist panel: add companies to highlight matching rows with a ★ star (case-insensitive, persists across runs)
@@ -100,7 +101,7 @@ Connect Claude Code to Role Scout and ask questions like:
 - "Tailor my resume for job abc123"
 - "Trigger a dry-run pipeline fetch"
 
-Nine tools exposed over stdio: `get_pipeline_status`, `run_pipeline`, `get_jobs`, `get_job_detail`, `tailor_resume`, `get_run_logs`, `get_watchlist`, `add_to_watchlist`, `remove_from_watchlist`.
+Nine tools exposed over stdio: `run_pipeline`, `get_jobs`, `get_job_detail`, `analyze_job`, `tailor_resume`, `update_job_status`, `get_run_history`, `get_watchlist`, `manage_watchlist`.
 
 ---
 
@@ -170,7 +171,6 @@ All runtime configuration lives in `.env`. No values are hardcoded.
 | `IMAP_USER` | Email address that receives TrueUp job alert digests |
 | `IMAP_PASSWORD` | App-specific password for that IMAP account |
 | `IMAP_FOLDER` | Mailbox folder to read (default: `INBOX`) |
-| `TRUEUP_MAX_EMAILS` | `3` | How many recent TrueUp digest emails to parse per run (1–20) |
 
 ### Optional
 
@@ -178,7 +178,8 @@ All runtime configuration lives in `.env`. No values are hardcoded.
 |----------|---------|-------------|
 | `DB_PATH` | `output/jobsearch.db` | SQLite database file path (created automatically on first run) |
 | `RUN_MODE` | `agentic` | `agentic` — shadow mode is unavailable (see note below) |
-| `SCORE_THRESHOLD` | `85` | Minimum match % to qualify a job |
+| `SCORE_THRESHOLD` | `70` | Minimum match % to qualify a job |
+| `TRUEUP_MAX_EMAILS` | `3` | How many recent TrueUp digest emails to parse per run (1–20) |
 | `MAX_COST_USD` | `5.00` | Per-run cost kill-switch (USD) |
 | `LOG_LEVEL` | `INFO` | `DEBUG` · `INFO` · `WARNING` · `ERROR` |
 | `LANGSMITH_TRACING` | `false` | Enable LangSmith graph traces |
