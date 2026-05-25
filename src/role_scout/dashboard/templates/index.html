@@ -38,6 +38,7 @@
     ('linkedin',   'LinkedIn',     source_counts.get('linkedin', 0)),
     ('google_jobs','Google Jobs',  source_counts.get('google_jobs', 0)),
     ('trueup',     'TrueUp',       source_counts.get('trueup', 0)),
+    ('manual',     'Manual',       source_counts.get('manual', 0)),
   ] %}
   {% for key, label, count in source_filters %}
   <a href="/?status={{ active_status }}&sort={{ active_sort }}&dir={{ active_dir }}{% if key %}&source={{ key }}{% endif %}"
