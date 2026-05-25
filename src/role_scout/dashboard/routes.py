@@ -49,6 +49,37 @@ _VALID_SORT_COLS = {"match_pct", "company", "title", "city", "work_model", "comp
 _VALID_DIRS = {"asc", "desc"}
 
 _HASH_ID_RE = re.compile(r"^[a-f0-9]{16}$")
+_RELATIVE_DATE_RE = re.compile(r"(\d+)\s+(hour|hours|day|days|week|weeks|month|months)\s+ago", re.IGNORECASE)
+
+
+def _parse_days_since_posted(raw: str, today: Any) -> int | None:
+    """Return days since posting from ISO date or relative string, or None."""
+    if not raw:
+        return None
+    # ISO date / datetime (e.g. "2026-04-27")
+    try:
+        from datetime import date as _date
+        posted = datetime.fromisoformat(raw).date()
+        return (today - posted).days
+    except (ValueError, TypeError):
+        pass
+    # Relative strings: "N days ago", "N hours ago", "N weeks ago", etc.
+    m = _RELATIVE_DATE_RE.search(raw)
+    if m:
+        n, unit = int(m.group(1)), m.group(2).lower()
+        if "hour" in unit:
+            return 0
+        if "day" in unit:
+            return n
+        if "week" in unit:
+            return n * 7
+        if "month" in unit:
+            return n * 30
+    if re.search(r"\byesterday\b", raw, re.IGNORECASE):
+        return 1
+    if re.search(r"\btoday\b|\bjust now\b|\ban? hour", raw, re.IGNORECASE):
+        return 0
+    return None
 
 
 def _get_settings() -> Settings:
@@ -793,11 +824,14 @@ def index():
         active_dir = "desc"
 
     with ro_conn(settings.DB_PATH) as conn:
+        # posted_date has mixed-format strings; Python post-sort handles it.
+        # Pass scored_at to SQL so the initial fetch order is stable.
+        sql_sort = "scored_at" if active_sort == "posted_date" else active_sort
         jobs_raw = get_qualified_jobs(
             conn,
             status=active_status,
             source=active_source,
-            sort=active_sort,
+            sort=sql_sort,
             dir=active_dir,
             limit=_JOBS_LISTING_LIMIT,
         )
@@ -848,16 +882,18 @@ def index():
                 jd["jd_alignment_parsed"] = None
         else:
             jd["jd_alignment_parsed"] = None
-        # Compute days since posting (None when posted_date is absent or unparseable)
-        jd["days_since_posted"] = None
-        raw_date = jd.get("posted_date")
-        if raw_date:
-            try:
-                posted = datetime.fromisoformat(str(raw_date)).date()
-                jd["days_since_posted"] = (today - posted).days
-            except (ValueError, TypeError):
-                pass
+        # Compute days since posting — handles ISO dates and "N days/hours ago" strings
+        jd["days_since_posted"] = _parse_days_since_posted(str(raw_date := jd.get("posted_date") or ""), today)
         jobs.append(jd)
+
+    # posted_date is stored in mixed formats (ISO + relative strings) so SQL sort is
+    # unreliable — sort by the computed days_since_posted in Python after building the list.
+    # NULLs always go last. asc = smallest days first (most recent). desc = largest days first (oldest).
+    if active_sort == "posted_date":
+        if active_dir == "asc":
+            jobs.sort(key=lambda j: (j["days_since_posted"] is None, j["days_since_posted"] or 0))
+        else:
+            jobs.sort(key=lambda j: (j["days_since_posted"] is None, -(j["days_since_posted"] or 0)))
 
     # Add "all active" count
     total_counts["all"] = total_counts.get("new", 0) + total_counts.get("reviewed", 0)
