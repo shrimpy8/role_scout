@@ -20,7 +20,8 @@
   ] %}
   {% for key, label, count in status_filters %}
   <a href="/?status={{ key }}{% if active_source %}&source={{ active_source }}{% endif %}&sort={{ active_sort }}&dir={{ active_dir }}"
-     class="sb-filter {% if active_status == key %}active{% endif %}">
+     class="sb-filter {% if active_status == key %}active{% endif %}"
+     data-status="{{ key }}">
     {{ label }}
     <span class="sb-count">{{ count }}</span>
   </a>
@@ -441,10 +442,10 @@
 
 <!-- Footer counts -->
 <div id="rs-footer">
-  <span>{{ total_counts.get('new', 0) }} new</span>
-  <span>{{ total_counts.get('reviewed', 0) }} reviewed</span>
-  <span>{{ total_counts.get('applied', 0) }} applied</span>
-  <span>{{ total_counts.get('rejected', 0) }} rejected</span>
+  <span data-footer-status="new">{{ total_counts.get('new', 0) }} new</span>
+  <span data-footer-status="reviewed">{{ total_counts.get('reviewed', 0) }} reviewed</span>
+  <span data-footer-status="applied">{{ total_counts.get('applied', 0) }} applied</span>
+  <span data-footer-status="rejected">{{ total_counts.get('rejected', 0) }} rejected</span>
   <span style="margin-left:auto">
     <a href="/debug/basic" style="color:var(--text-faint);font-size:11px">Basic view</a>
     ·
