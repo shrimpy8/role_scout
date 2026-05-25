@@ -67,6 +67,15 @@ def create_app(flask_secret_key: str | None = None, log_level: str | None = None
     # Store settings once per app lifetime so route handlers don't re-read .env on every request
     app.config["RS_SETTINGS"] = _settings
 
+    # Run DB migrations on every startup so the dashboard works standalone (--serve only).
+    # Wrapped in try/except: test fixtures use a minimal schema that lacks some indexes;
+    # production DBs have the full schema and this always succeeds.
+    try:
+        from role_scout.db import init_db as _init_db
+        _init_db(_settings.DB_PATH)
+    except Exception:
+        log.debug("db_startup_migration_skipped", hint="minimal schema (test) or already current")
+
     from role_scout.dashboard.routes import bp
     app.register_blueprint(bp)
 

@@ -117,7 +117,8 @@ def init_db(db_path: str = "output/jobsearch.db") -> None:
                 conn.execute(migration)
                 conn.commit()
             except sqlite3.OperationalError as e:
-                if "already exists" not in str(e):
+                msg = str(e).lower()
+                if "duplicate column name" not in msg and "already exists" not in msg:
                     raise  # genuine schema error — don't swallow
 
         # Rebuild qualified_jobs if the status CHECK constraint is missing the new statuses.
@@ -177,7 +178,8 @@ def init_db(db_path: str = "output/jobsearch.db") -> None:
                     jd_downloaded    INTEGER NOT NULL DEFAULT 0 CHECK(jd_downloaded IN (0,1)),
                     scored_at        TEXT NOT NULL,
                     fetched_at       TEXT,
-                    run_id           TEXT
+                    run_id           TEXT,
+                    tailored_resume  TEXT
                 );
 
                 INSERT INTO qualified_jobs SELECT * FROM qualified_jobs_migration_backup;
