@@ -41,8 +41,13 @@
     ('manual',     'Manual',       source_counts.get('manual', 0)),
   ] %}
   {% for key, label, count in source_filters %}
-  <a href="/?status={{ active_status }}&sort={{ active_sort }}&dir={{ active_dir }}{% if key %}&source={{ key }}{% endif %}"
+  {% if key %}
+  <a href="/?status=all&sort={{ active_sort }}&dir={{ active_dir }}&source={{ key }}"
      class="sb-filter {% if active_source == key %}active{% endif %}">
+  {% else %}
+  <a href="/?sort={{ active_sort }}&dir={{ active_dir }}"
+     class="sb-filter {% if active_source == key %}active{% endif %}">
+  {% endif %}
     {{ label }}
     <span class="sb-count">{{ count }}</span>
   </a>
