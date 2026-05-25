@@ -195,6 +195,7 @@
     <tr class="job-row {% if job.is_watchlist %}watchlist-job{% endif %}"
         data-hash-id="{{ job.hash_id }}"
         data-match-pct="{{ job.match_pct }}"
+        data-source="{{ job.source }}"
         data-company="{{ job.company | lower }}"
         role="button" tabindex="0"
         aria-expanded="false">
