@@ -82,6 +82,21 @@
   }
   .reanalyze-btn:hover { border-color: var(--accent); }
 
+  .result-url-link {
+    font-size: 14px; color: var(--text-faint); text-decoration: none;
+    vertical-align: middle; margin-left: 4px; line-height: 1;
+    transition: color 0.15s;
+  }
+  .result-url-link:hover { color: var(--accent); }
+
+  #reanalyze-all-btn {
+    font-size: 12px; padding: 6px 14px; border-radius: 7px;
+    border: 1px solid var(--accent); background: var(--bg-surface);
+    color: var(--accent); cursor: pointer; font-weight: 600;
+  }
+  #reanalyze-all-btn:hover { background: var(--accent); color: #fff; }
+  #reanalyze-all-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
   .confirm-bar { display: flex; gap: 10px; align-items: center; margin-top: 16px; }
   #confirm-btn, #confirm-all-btn {
     padding: 8px 18px; border-radius: 7px;
@@ -164,6 +179,12 @@
     <div class="confirm-bar">
       <button id="confirm-btn" type="button">Ingest Selected</button>
       <button id="confirm-all-btn" type="button">Ingest All Ready</button>
+    </div>
+    <div id="reanalyze-all-wrap" style="margin-top:12px;" hidden>
+      <button id="reanalyze-all-btn" type="button">↻ Re-analyze all pasted JDs</button>
+      <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">
+        Runs the full batch again using your pasted text for thin/failed URLs
+      </span>
     </div>
   </div>
 

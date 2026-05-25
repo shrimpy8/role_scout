@@ -82,7 +82,8 @@
       var matchCell = matchPct != null ? matchBadge(matchPct) : '<span style="color:var(--text-ghost)">—</span>';
 
       var companyTitle = '<strong>' + _esc(company) + '</strong><br><span style="color:var(--text-muted);font-size:12px;">' + _esc(title) + '</span>';
-      companyTitle += '<br><span class="result-url">' + _esc(r.url) + '</span>';
+      // URL as external-link icon — target="_blank" always opens a new tab
+      companyTitle += '&nbsp;<a class="result-url-link" href="' + _esc(r.url) + '" target="_blank" rel="noopener noreferrer" title="' + _esc(r.url) + '">↗</a>';
 
       // Thin URL: show paste area
       if (r.status === 'thin') {
@@ -224,6 +225,7 @@
         successEl.innerHTML = msg;
         show(successEl);
         hide($id('results-wrap'));
+        hide($id('reanalyze-all-wrap'));
         // Reset input
         $id('url-input').value = '';
         _results = [];
@@ -244,6 +246,39 @@
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  // ---- Show/hide "Re-analyze all" button when any textarea has content -----
+  function updateReanalyzeAllVisibility() {
+    var anyPasted = false;
+    document.querySelectorAll('.manual-text-area').forEach(function (ta) {
+      if (ta.value.trim()) anyPasted = true;
+    });
+    var wrap = $id('reanalyze-all-wrap');
+    if (wrap) wrap.hidden = !anyPasted;
+  }
+
+  // ---- Re-analyze ALL URLs using pasted text from all textareas -----------
+  function reanalyzeAll() {
+    var urlArea = $id('url-input');
+    var allUrls = (urlArea.value || '').split('\n').map(function (u) { return u.trim(); }).filter(Boolean);
+
+    var manualTexts = {};
+    document.querySelectorAll('.manual-text-area').forEach(function (ta) {
+      var u = ta.getAttribute('data-url');
+      var t = ta.value.trim();
+      if (u && t) manualTexts[u] = t;
+    });
+
+    if (!allUrls.length) {
+      alert('No URLs found. Please paste URLs in the input box above first.');
+      return;
+    }
+    if (!Object.keys(manualTexts).length) {
+      alert('No pasted JD text found. Paste the job description text into the fields below each failed URL first.');
+      return;
+    }
+    doAnalyze(allUrls, manualTexts);
   }
 
   // ---- Re-analyze a single URL with pasted text ---------------------------
@@ -350,6 +385,18 @@
         doConfirm(getAllReadyJobs());
       });
     }
+
+    var reanalyzeAllBtn = $id('reanalyze-all-btn');
+    if (reanalyzeAllBtn) {
+      reanalyzeAllBtn.addEventListener('click', reanalyzeAll);
+    }
+
+    // Show "Re-analyze all" button as soon as any textarea gets content
+    document.addEventListener('input', function (e) {
+      if (e.target && e.target.classList.contains('manual-text-area')) {
+        updateReanalyzeAllVisibility();
+      }
+    });
   }
 
   if (document.readyState === 'loading') {
