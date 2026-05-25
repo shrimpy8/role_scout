@@ -9,7 +9,9 @@
 
   function updateFilter(value) {
     var activeStatus = (window.RS_CONFIG && window.RS_CONFIG.activeStatus) || 'new';
-    var skipThreshold = !!_SKIP_THRESHOLD[activeStatus];
+    var activeSource = (window.RS_CONFIG && window.RS_CONFIG.activeSource) || '';
+    // Skip threshold when status doesn't need it, a source is selected, or job is manual.
+    var skipThreshold = !!_SKIP_THRESHOLD[activeStatus] || !!activeSource;
     var rows = document.querySelectorAll('#jobs-table tbody tr.job-row[data-match-pct]');
     var visible = 0;
     var total = 0;

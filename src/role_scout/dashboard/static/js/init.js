@@ -5,6 +5,7 @@
   window.RS_CONFIG = {
     threshold: parseInt(el.getAttribute('data-threshold'), 10) || 70,
     activeStatus: el.getAttribute('data-active-status') || 'new',
+    activeSource: el.getAttribute('data-active-source') || '',
     totalJobs: parseInt(el.getAttribute('data-total-jobs'), 10) || 0,
     watchlist: JSON.parse(el.getAttribute('data-watchlist') || '[]'),
     donotapply: JSON.parse(el.getAttribute('data-donotapply') || '[]'),
