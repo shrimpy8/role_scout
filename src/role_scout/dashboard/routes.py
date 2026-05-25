@@ -24,9 +24,13 @@ from role_scout.compat.db.qualified_jobs import (
     get_job_count_by_source,
     get_job_count_by_status,
     get_qualified_jobs,
+    insert_qualified_job,
     update_jd_alignment,
     update_job_status,
 )
+from role_scout.compat.db.seen_hashes import upsert_seen_hash
+from role_scout.compat.models import ScoredJob as _ScoredJobModel
+from pydantic import ValidationError as _PydanticValidationError
 from role_scout.config import Settings
 from role_scout.dal import donotapply_dal, watchlist_dal
 from role_scout.dal.run_log_dal import get_run_logs
@@ -777,7 +781,7 @@ def index():
         active_status = "new"
 
     active_source: str | None = request.args.get("source")
-    if active_source not in {None, "linkedin", "google_jobs", "trueup"}:
+    if active_source not in {None, "linkedin", "google_jobs", "trueup", "manual"}:
         active_source = None
 
     active_sort = request.args.get("sort", "match_pct")
@@ -882,3 +886,184 @@ def index():
         donotapply_initial=donotapply,
         locked_initial=locked,
     )
+
+
+# ---------------------------------------------------------------------------
+# Ingest helpers
+# ---------------------------------------------------------------------------
+
+_MAX_INGEST_URLS = 20
+_MAX_MANUAL_TEXT_CHARS = 50_000
+# Only external HTTPS URLs — blocks http:// and anything without a dot in host
+_URL_RE = re.compile(r"^https://[^/\s]+\.[^/\s]", re.IGNORECASE)
+
+# Private/loopback IP prefixes — block to prevent SSRF against local services.
+# This dashboard is single-user local, but defence-in-depth applies.
+_PRIVATE_PREFIXES = (
+    "https://127.", "https://localhost", "https://0.",
+    "https://10.", "https://192.168.",
+    "https://172.16.", "https://172.17.", "https://172.18.", "https://172.19.",
+    "https://172.20.", "https://172.21.", "https://172.22.", "https://172.23.",
+    "https://172.24.", "https://172.25.", "https://172.26.", "https://172.27.",
+    "https://172.28.", "https://172.29.", "https://172.30.", "https://172.31.",
+    "https://169.254.",   # link-local / AWS metadata
+    "https://[::1]",      # IPv6 loopback
+    "https://[fc", "https://[fd",  # IPv6 private ULA
+)
+
+
+def _ingest_feature_disabled():
+    """Return 404 response if MANUAL_INGEST_ENABLED is false, else None."""
+    if not _get_settings().MANUAL_INGEST_ENABLED:
+        return jsonify({"error": {"code": "FEATURE_DISABLED", "message": "Manual ingestion is disabled (set MANUAL_INGEST_ENABLED=true in .env)", "details": []}}), 404
+    return None
+
+
+def _validate_ingest_url(url: str) -> str | None:
+    """Return an error string if the URL is invalid or targets a private host, else None."""
+    url = url.strip()
+    if not _URL_RE.match(url):
+        return f"Invalid URL (must start with https://): {url[:120]}"
+    lower = url.lower()
+    if any(lower.startswith(p) for p in _PRIVATE_PREFIXES):
+        return f"URL targets a private or loopback address: {url[:120]}"
+    return None
+
+
+# ---------------------------------------------------------------------------
+# GET /ingest — Manual job ingestion page
+# ---------------------------------------------------------------------------
+
+@bp.route("/ingest", methods=["GET"])
+def ingest_page():
+    """Serve the manual job ingestion page (gated by MANUAL_INGEST_ENABLED)."""
+    blocked = _ingest_feature_disabled()
+    if blocked:
+        return blocked
+    return render_template("ingest.html")
+
+
+# ---------------------------------------------------------------------------
+# POST /api/ingest/analyze
+# ---------------------------------------------------------------------------
+
+@bp.route("/api/ingest/analyze", methods=["POST"])
+def ingest_analyze():
+    """Fetch, extract, and score a list of JD URLs.
+
+    Body: {"urls": [...], "manual_texts": {"url": "pasted JD text"}}
+    Returns list of AnalysisResult dicts.
+    """
+    blocked = _ingest_feature_disabled()
+    if blocked:
+        return blocked
+
+    body = request.get_json(silent=True) or {}
+    urls = body.get("urls", [])
+    manual_texts = body.get("manual_texts", {})
+
+    if not isinstance(urls, list) or not (1 <= len(urls) <= _MAX_INGEST_URLS):
+        return jsonify({"error": {"code": "VALIDATION_ERROR", "message": f"urls must be a list of 1–{_MAX_INGEST_URLS} items", "details": []}}), 422
+
+    url_errors = [_validate_ingest_url(u) for u in urls if isinstance(u, str)]
+    url_errors = [e for e in url_errors if e]
+    if url_errors or any(not isinstance(u, str) for u in urls):
+        return jsonify({"error": {"code": "VALIDATION_ERROR", "message": "One or more URLs are invalid", "details": url_errors[:5]}}), 422
+
+    if not isinstance(manual_texts, dict):
+        return jsonify({"error": {"code": "VALIDATION_ERROR", "message": "manual_texts must be an object", "details": []}}), 422
+
+    cleaned_urls = [u.strip() for u in urls]
+    cleaned_texts: dict[str, str] = {}
+    for url, text in manual_texts.items():
+        if not isinstance(text, str):
+            continue
+        if len(text) > _MAX_MANUAL_TEXT_CHARS:
+            return jsonify({"error": {"code": "VALIDATION_ERROR", "message": f"manual_texts values must be <= {_MAX_MANUAL_TEXT_CHARS} chars", "details": []}}), 422
+        cleaned_texts[url.strip()] = text.strip()
+
+    settings = _get_settings()
+    log.info("ingest_analyze.start", url_count=len(cleaned_urls), manual_text_count=len(cleaned_texts))
+    try:
+        from role_scout.compat.models import load_candidate_profile
+        from role_scout.ingest.extractor import analyze_urls
+        profile = load_candidate_profile(str(settings.CANDIDATE_PROFILE_PATH))
+        results = analyze_urls(
+            urls=cleaned_urls,
+            manual_texts=cleaned_texts,
+            candidate_profile=profile,
+            api_key=settings.ANTHROPIC_API_KEY,
+            model=settings.CLAUDE_MODEL,
+            db_path=str(settings.DB_PATH),
+            score_threshold=0,
+        )
+    except FileNotFoundError:
+        log.exception("ingest_analyze.profile_missing")
+        return jsonify({"error": {"code": "CONFIG_ERROR", "message": "Candidate profile not found — ensure config/candidate_profile.yaml exists", "details": []}}), 500
+    except Exception:
+        log.exception("ingest_analyze.error")
+        return jsonify({"error": {"code": "INGEST_ERROR", "message": "Analysis failed — check server logs for details", "details": []}}), 500
+
+    ready = sum(1 for r in results if r.status == "ready")
+    log.info("ingest_analyze.done", total=len(results), ready=ready)
+    return jsonify_ok({"results": [r.to_dict() for r in results]}), 200
+
+
+# ---------------------------------------------------------------------------
+# POST /api/ingest/confirm
+# ---------------------------------------------------------------------------
+
+@bp.route("/api/ingest/confirm", methods=["POST"])
+def ingest_confirm():
+    """Write confirmed jobs to qualified_jobs + seen_hashes.
+
+    Body: {"jobs": [...ScoredJob-compatible dicts with source='manual'...]}
+    Returns: {"ingested": N, "skipped": M}
+    """
+    blocked = _ingest_feature_disabled()
+    if blocked:
+        return blocked
+
+    settings = _get_settings()
+    body = request.get_json(silent=True) or {}
+    jobs_raw = body.get("jobs", [])
+
+    if not isinstance(jobs_raw, list) or not (1 <= len(jobs_raw) <= _MAX_INGEST_URLS):
+        return jsonify({"error": {"code": "VALIDATION_ERROR", "message": f"jobs must be a list of 1–{_MAX_INGEST_URLS} items", "details": []}}), 422
+
+    validated_jobs: list[_ScoredJobModel] = []
+    for i, raw in enumerate(jobs_raw):
+        if not isinstance(raw, dict):
+            return jsonify({"error": {"code": "VALIDATION_ERROR", "message": f"jobs[{i}] must be an object", "details": []}}), 422
+        hash_id = raw.get("hash_id", "")
+        if not _HASH_ID_RE.match(str(hash_id)):
+            return jsonify({"error": {"code": "VALIDATION_ERROR", "message": f"jobs[{i}].hash_id must be 16 hex chars", "details": []}}), 422
+        if raw.get("source") != "manual":
+            return jsonify({"error": {"code": "VALIDATION_ERROR", "message": f"jobs[{i}].source must be 'manual'", "details": []}}), 422
+        try:
+            validated_jobs.append(_ScoredJobModel.model_validate(raw))
+        except _PydanticValidationError:
+            return jsonify({"error": {"code": "VALIDATION_ERROR", "message": f"jobs[{i}] failed schema validation", "details": []}}), 422
+
+    log.info("ingest_confirm.start", job_count=len(validated_jobs))
+    ingested = 0
+    skipped = 0
+    try:
+        with rw_conn(str(settings.DB_PATH)) as conn:
+            for job in validated_jobs:
+                existing = conn.execute(
+                    "SELECT hash_id FROM qualified_jobs WHERE hash_id = ?", (job.hash_id,)
+                ).fetchone()
+                if existing:
+                    skipped += 1
+                    continue
+                insert_qualified_job(conn, job)
+                upsert_seen_hash(conn, job.hash_id, "manual", job.title, job.company)
+                ingested += 1
+            conn.commit()
+    except Exception:
+        log.exception("ingest_confirm.db_error")
+        return jsonify({"error": {"code": "DB_ERROR", "message": "Failed to write jobs to database", "details": []}}), 500
+
+    log.info("ingest_confirm.ok", ingested=ingested, skipped=skipped)
+    return jsonify_ok({"ingested": ingested, "skipped": skipped}), 200

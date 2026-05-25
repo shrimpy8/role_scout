@@ -66,6 +66,8 @@ def create_app(flask_secret_key: str | None = None, log_level: str | None = None
 
     # Store settings once per app lifetime so route handlers don't re-read .env on every request
     app.config["RS_SETTINGS"] = _settings
+    # Expose feature flags to all Jinja templates
+    app.jinja_env.globals["manual_ingest_enabled"] = _settings.MANUAL_INGEST_ENABLED
 
     # Run DB migrations on every startup so the dashboard works standalone (--serve only).
     # Wrapped in try/except: test fixtures use a minimal schema that lacks some indexes;

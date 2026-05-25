@@ -150,7 +150,7 @@ def init_db(db_path: str = "output/jobsearch.db") -> None:
                         url              TEXT NOT NULL,
                         apply_url        TEXT,
                         source           TEXT NOT NULL
-                                         CHECK(source IN ('linkedin','google_jobs','trueup')),
+                                         CHECK(source IN ('linkedin','google_jobs','trueup','manual')),
                         posted_date      TEXT,
                         comp_range       TEXT,
                         salary_visible   INTEGER NOT NULL DEFAULT 0 CHECK(salary_visible IN (0,1)),
@@ -223,6 +223,105 @@ def init_db(db_path: str = "output/jobsearch.db") -> None:
             finally:
                 conn.execute("PRAGMA foreign_keys=ON")
             logger.info("db_migration_done", reason="status_check_constraint_update")
+
+        # Rebuild qualified_jobs if the source CHECK constraint is missing 'manual'.
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='qualified_jobs'"
+        ).fetchone()
+        if row and "'manual'" not in row[0]:
+            logger.info("db_migration_start", reason="source_check_constraint_add_manual")
+            conn.execute("PRAGMA foreign_keys=OFF")
+            try:
+                conn.execute(
+                    "CREATE TABLE qualified_jobs_new AS SELECT * FROM qualified_jobs"
+                )
+                conn.execute("DROP TABLE qualified_jobs")
+                conn.execute("""
+                    CREATE TABLE qualified_jobs (
+                        hash_id          TEXT PRIMARY KEY,
+                        title            TEXT NOT NULL,
+                        company          TEXT NOT NULL,
+                        location         TEXT NOT NULL,
+                        city             TEXT NOT NULL DEFAULT '',
+                        country          TEXT NOT NULL DEFAULT '',
+                        work_model       TEXT NOT NULL DEFAULT 'unknown'
+                                         CHECK(work_model IN ('remote','hybrid','onsite','unknown')),
+                        url              TEXT NOT NULL,
+                        apply_url        TEXT,
+                        source           TEXT NOT NULL
+                                         CHECK(source IN ('linkedin','google_jobs','trueup','manual')),
+                        posted_date      TEXT,
+                        comp_range       TEXT,
+                        salary_visible   INTEGER NOT NULL DEFAULT 0 CHECK(salary_visible IN (0,1)),
+                        company_stage    TEXT,
+                        is_watchlist     INTEGER NOT NULL DEFAULT 0 CHECK(is_watchlist IN (0,1)),
+                        match_pct        INTEGER NOT NULL CHECK(match_pct BETWEEN 0 AND 100),
+                        seniority_score  INTEGER CHECK(seniority_score BETWEEN 0 AND 30),
+                        domain_score     INTEGER CHECK(domain_score BETWEEN 0 AND 25),
+                        location_score   INTEGER CHECK(location_score BETWEEN 0 AND 20),
+                        stage_score      INTEGER CHECK(stage_score BETWEEN 0 AND 15),
+                        comp_score       INTEGER CHECK(comp_score BETWEEN 0 AND 10),
+                        reasoning        TEXT NOT NULL,
+                        key_requirements TEXT NOT NULL DEFAULT '[]',
+                        red_flags        TEXT NOT NULL DEFAULT '[]',
+                        domain_alignment TEXT,
+                        seniority_match  TEXT,
+                        location_fit     TEXT,
+                        company_stage_fit TEXT,
+                        description      TEXT,
+                        description_snippet TEXT,
+                        company_size     TEXT,
+                        domain_tags      TEXT NOT NULL DEFAULT '[]',
+                        jd_alignment     TEXT,
+                        status           TEXT NOT NULL DEFAULT 'new'
+                                         CHECK(status IN ('new','reviewed','applied','rejected','not_a_fit','not_available')),
+                        jd_filename      TEXT,
+                        jd_downloaded    INTEGER NOT NULL DEFAULT 0 CHECK(jd_downloaded IN (0,1)),
+                        scored_at        TEXT NOT NULL,
+                        fetched_at       TEXT,
+                        run_id           TEXT,
+                        tailored_resume  TEXT
+                    )
+                """)
+                cols = [
+                    r[1] for r in conn.execute("PRAGMA table_info(qualified_jobs_new)")
+                ]
+                col_list = ", ".join(cols)
+                conn.execute(
+                    f"INSERT INTO qualified_jobs ({col_list}) "  # noqa: S608
+                    f"SELECT {col_list} FROM qualified_jobs_new"
+                )
+                conn.execute("DROP TABLE qualified_jobs_new")
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_qualified_jobs_status "
+                    "ON qualified_jobs(status)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_qualified_jobs_run_id "
+                    "ON qualified_jobs(run_id)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_qualified_jobs_match_pct "
+                    "ON qualified_jobs(match_pct DESC)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_qualified_jobs_company "
+                    "ON qualified_jobs(company)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_qualified_jobs_scored_at "
+                    "ON qualified_jobs(scored_at DESC)"
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                logger.exception(
+                    "db_migration_failed", reason="source_check_constraint_add_manual"
+                )
+                raise
+            finally:
+                conn.execute("PRAGMA foreign_keys=ON")
+            logger.info("db_migration_done", reason="source_check_constraint_add_manual")
 
         logger.info("db_initialised", path=db_path)
     finally:

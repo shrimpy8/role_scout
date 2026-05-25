@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}Ingest Jobs — Role Scout{% endblock %}
+
+{% block sidebar %}{% endblock %}
+
+{% block content %}
+<style>
+  #ingest-page { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
+  #ingest-page h1 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  #ingest-page .subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+
+  .ingest-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .ingest-card label { font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px; letter-spacing: 0.05em; text-transform: uppercase; }
+  #url-input {
+    width: 100%; min-height: 160px; resize: vertical;
+    font-family: monospace; font-size: 13px;
+    background: var(--bg-base); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px; outline: none; line-height: 1.6;
+  }
+  #url-input:focus { border-color: var(--accent); }
+  .url-hint { font-size: 11px; color: var(--text-faint); margin-top: 6px; }
+
+  #analyze-btn {
+    margin-top: 14px;
+    padding: 8px 20px; border-radius: 7px;
+    background: var(--accent); color: #fff;
+    border: none; cursor: pointer; font-size: 13px; font-weight: 600;
+  }
+  #analyze-btn:hover { opacity: 0.88; }
+  #analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  #loading-wrap { text-align: center; padding: 40px 0; }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Results table */
+  #results-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #results-table thead th {
+    padding: 8px 10px; text-align: left;
+    border-bottom: 2px solid var(--border-strong);
+    font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--text-muted);
+    background: var(--bg-surface);
+    white-space: nowrap;
+  }
+  #results-table tbody tr { border-bottom: 1px solid var(--border); }
+  #results-table tbody td { padding: 10px; vertical-align: top; }
+  #results-table tbody tr:hover { background: var(--bg-elevated); }
+
+  .result-url { font-size: 11px; color: var(--text-faint); word-break: break-all; max-width: 220px; }
+  .conf-badge { font-size: 11px; padding: 1px 7px; border-radius: 99px; font-weight: 600; }
+  .conf-high { background: var(--green-bg); color: var(--green); }
+  .conf-mid  { background: var(--amber-bg); color: var(--amber); }
+  .conf-low  { background: var(--red-bg); color: var(--red); }
+
+  .status-badge { font-size: 11px; padding: 1px 8px; border-radius: 99px; }
+  .status-ready    { background: var(--green-bg); color: var(--green); }
+  .status-thin     { background: var(--amber-bg); color: var(--amber); }
+  .status-failed   { background: var(--red-bg); color: var(--red); }
+  .status-duplicate{ background: var(--blue-bg); color: var(--blue); }
+
+  .manual-text-area {
+    width: 100%; min-height: 80px; resize: vertical;
+    font-family: monospace; font-size: 11px;
+    background: var(--bg-base); color: var(--text-primary);
+    border: 1px solid var(--amber); border-radius: 5px;
+    padding: 6px; outline: none; margin-top: 6px;
+  }
+  .manual-text-area:focus { border-color: var(--accent); }
+  .reanalyze-btn {
+    font-size: 11px; padding: 2px 8px; margin-top: 4px;
+    border: 1px solid var(--border); border-radius: 5px;
+    background: var(--bg-surface); color: var(--accent); cursor: pointer;
+  }
+  .reanalyze-btn:hover { border-color: var(--accent); }
+
+  .confirm-bar { display: flex; gap: 10px; align-items: center; margin-top: 16px; }
+  #confirm-btn, #confirm-all-btn {
+    padding: 8px 18px; border-radius: 7px;
+    border: none; cursor: pointer; font-size: 13px; font-weight: 600;
+  }
+  #confirm-btn { background: var(--accent); color: #fff; }
+  #confirm-btn:hover { opacity: 0.88; }
+  #confirm-btn:disabled, #confirm-all-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  #confirm-all-btn { background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border); }
+  #confirm-all-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .select-all-row { font-size: 12px; color: var(--text-muted); }
+  .select-all-row a { cursor: pointer; color: var(--accent); text-decoration: none; }
+  .select-all-row a:hover { text-decoration: underline; }
+
+  #success-msg {
+    padding: 16px 20px; border-radius: 8px;
+    background: var(--green-bg); color: var(--green);
+    font-size: 13px; font-weight: 500;
+    border: 1px solid var(--green);
+  }
+  #error-msg {
+    padding: 14px 18px; border-radius: 8px;
+    background: var(--red-bg); color: var(--red);
+    font-size: 13px;
+    border: 1px solid var(--red);
+  }
+  .match-badge-sm {
+    display: inline-block; padding: 1px 8px; border-radius: 99px;
+    font-weight: 700; font-size: 12px; min-width: 40px; text-align: center;
+  }
+  .match-badge-sm.high { background: var(--green-bg); color: var(--green); }
+  .match-badge-sm.mid  { background: var(--amber-bg); color: var(--amber); }
+  .match-badge-sm.low  { background: var(--bg-elevated); color: var(--text-muted); }
+</style>
+
+<div id="ingest-page">
+  <h1>Manual Job Ingestion</h1>
+  <p class="subtitle">Paste 5–20 JD URLs below. Role Scout will fetch each page, extract metadata, and score it using the same pipeline as automated discovery.</p>
+
+  <!-- Input card -->
+  <div class="ingest-card">
+    <label for="url-input">Job Posting URLs (one per line)</label>
+    <textarea id="url-input" placeholder="https://boards.greenhouse.io/...&#10;https://jobs.ashbyhq.com/...&#10;https://www.ziprecruiter.com/c/..."></textarea>
+    <div class="url-hint">HTTPS URLs only. Supported platforms: Greenhouse, Ashby, Builtin, ZipRecruiter, Snowflake, and most standard career pages. If a page can't be fetched (JS-heavy sites), you can paste the JD text manually.</div>
+    <button id="analyze-btn" type="button">Analyze URLs</button>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading-wrap" hidden>
+    <div class="spinner"></div>
+    <p style="color:var(--text-muted);font-size:13px;">Fetching and scoring — usually 20–60s for 5+ URLs…</p>
+  </div>
+
+  <!-- Error banner -->
+  <div id="error-msg" hidden></div>
+
+  <!-- Results -->
+  <div id="results-wrap" hidden>
+    <div class="ingest-card" style="padding:0;overflow:hidden;">
+      <table id="results-table">
+        <thead>
+          <tr>
+            <th style="width:36px;"><input type="checkbox" id="select-all-chk" title="Select all ready jobs"></th>
+            <th>Company / Title</th>
+            <th>Location</th>
+            <th style="width:80px;">Match</th>
+            <th style="width:80px;">Confidence</th>
+            <th style="width:80px;">Status</th>
+          </tr>
+        </thead>
+        <tbody id="results-tbody"></tbody>
+      </table>
+    </div>
+    <div class="select-all-row">
+      <a id="sel-all-link">Select all ready</a> &nbsp;·&nbsp;
+      <a id="sel-none-link">Deselect all</a>
+      <span id="sel-count" style="margin-left:8px;"></span>
+    </div>
+    <div class="confirm-bar">
+      <button id="confirm-btn" type="button">Ingest Selected</button>
+      <button id="confirm-all-btn" type="button">Ingest All Ready</button>
+    </div>
+  </div>
+
+  <!-- Success message -->
+  <div id="success-msg" hidden></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/ingest.js') }}"></script>
+{% endblock %}

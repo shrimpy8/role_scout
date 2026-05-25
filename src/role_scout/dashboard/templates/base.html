@@ -419,6 +419,14 @@
     <a href="/" class="logo">⬡ <span>Role Scout</span></a>
     <div class="spacer"></div>
     <div class="meta" id="rs-total-meta"></div>
+    {% if manual_ingest_enabled %}
+    <a href="/ingest" id="ingest-link"
+       title="Manually ingest job postings by URL"
+       style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text-muted);text-decoration:none;white-space:nowrap;line-height:1.4;">+ Ingest</a>
+    {% else %}
+    <span id="ingest-link" title="Manual ingestion is disabled (set MANUAL_INGEST_ENABLED=true in .env)"
+          style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text-ghost);white-space:nowrap;line-height:1.4;cursor:default;">Ingest (off)</span>
+    {% endif %}
     <a id="download-reviewed-zip" href="/api/jd/download-reviewed-zip"
        title="Download all reviewed JDs as a ZIP file"
        aria-label="Download reviewed JDs">↓ Reviewed JDs</a>

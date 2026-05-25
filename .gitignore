@@ -18,6 +18,8 @@ build/
 *.db
 *.sqlite
 *.sqlite3
+# Test mock artifacts (SQLite files accidentally created with MagicMock path names)
+<MagicMock*
 
 # Test & lint caches
 .pytest_cache/

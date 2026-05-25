@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     IMAP_FOLDER: str = "INBOX"
     TRUEUP_MAX_EMAILS: int = Field(default=3, ge=1, le=20)
     DONOTAPPLY_COMPANIES: str = ""  # comma-separated base list; always excluded before scoring
+    MANUAL_INGEST_ENABLED: bool = Field(default=True, description="Set false to hide the manual job ingestion feature")
 
     # ---- Optional eval keys (only required when running evals) ----
     OPENAI_API_KEY: str | None = None

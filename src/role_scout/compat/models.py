@@ -30,7 +30,7 @@ class NormalizedJob(BaseModel):
     country: str = Field(default="")
     work_model: str = Field(default="unknown", description="remote | hybrid | onsite | unknown")
     url: str
-    source: Literal["linkedin", "google_jobs", "trueup"]
+    source: Literal["linkedin", "google_jobs", "trueup", "manual"]
     posted_date: str | None = None
     description: str | None = None
     comp_range: str | None = None
@@ -112,7 +112,7 @@ class ScoredJob(BaseModel):
     country: str = ""
     work_model: str = "unknown"
     url: str
-    source: Literal["linkedin", "google_jobs", "trueup"]
+    source: Literal["linkedin", "google_jobs", "trueup", "manual"]
     posted_date: str | None = None
     description: str | None = None
     description_snippet: str | None = None
