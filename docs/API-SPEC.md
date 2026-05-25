@@ -9,7 +9,7 @@
 | Status | Approved |
 | Updated | 2026-04-27 |
 
-> Implementation-ready OpenAPI 3.1 contract for the 16 Flask routes in the Phase 2 dashboard. All routes bind to `127.0.0.1` only. All write routes require CSRF.
+> Implementation-ready OpenAPI 3.1 contract for the 19 Flask routes in the Phase 2 dashboard. All routes bind to `127.0.0.1` only. All write routes require CSRF.
 
 ---
 
@@ -35,6 +35,9 @@
 | 14 | POST | `/api/donotapply` | Add a company to the do-not-apply list |
 | 15 | DELETE | `/api/donotapply/{company}` | Remove a company from the do-not-apply list |
 | 16 | GET | `/api/jd/download-reviewed-zip` | Download all reviewed JDs as a ZIP file |
+| 17 | GET | `/ingest` | Manual job ingestion page (feature-flagged by `MANUAL_INGEST_ENABLED`) |
+| 18 | POST | `/api/ingest/analyze` | Fetch + extract + score a batch of JD URLs (up to 20) |
+| 19 | POST | `/api/ingest/confirm` | Persist confirmed scored jobs to `qualified_jobs` |
 
 ### 1.2 Versioning — no `/v1/` prefix
 
@@ -1015,6 +1018,9 @@ All 2xx-supported endpoints may additionally return generic 5xx with `INTERNAL_E
 | `POST /api/donotapply` | `CSRF_INVALID`, `VALIDATION_ERROR` | `DONOTAPPLY_WRITE_ERROR`, `INTERNAL_ERROR` |
 | `DELETE /api/donotapply/{company}` | `CSRF_INVALID`, `NOT_FOUND` | `DONOTAPPLY_WRITE_ERROR`, `INTERNAL_ERROR` |
 | `GET /api/jd/download-reviewed-zip` | `NO_REVIEWED_JOBS` | `DB_ERROR`, `INTERNAL_ERROR` |
+| `GET /ingest` | `FEATURE_DISABLED` (404) | `INTERNAL_ERROR` |
+| `POST /api/ingest/analyze` | `CSRF_INVALID`, `FEATURE_DISABLED` (404), `VALIDATION_ERROR` | `CONFIG_ERROR`, `INGEST_ERROR`, `INTERNAL_ERROR` |
+| `POST /api/ingest/confirm` | `CSRF_INVALID`, `FEATURE_DISABLED` (404), `VALIDATION_ERROR` | `DB_ERROR`, `INTERNAL_ERROR` |
 
 ---
 
@@ -1124,7 +1130,95 @@ HTTP/1.1 403 Forbidden
 
 ---
 
-## 6. Implementation Pointers
+## 6. Manual Ingest Routes (17–19)
+
+Routes 17–19 are gated by the `MANUAL_INGEST_ENABLED` env var. When `false`, all three return 404 with `FEATURE_DISABLED`. The GET route is CSRF-exempt; the two POST routes require `X-CSRFToken`.
+
+### 6.1 `GET /ingest` — Ingest page
+
+Returns the ingest HTML page (rendered by Flask, not JSON). No request body.
+
+| Condition | Status | Body |
+|-----------|--------|------|
+| `MANUAL_INGEST_ENABLED=true` | 200 | HTML (`ingest.html`) |
+| `MANUAL_INGEST_ENABLED=false` | 404 | `{"error": {"code": "FEATURE_DISABLED", ...}}` |
+
+### 6.2 `POST /api/ingest/analyze` — Fetch, extract, and score URLs
+
+**Request body:**
+
+```json
+{
+  "urls": ["https://boards.greenhouse.io/...", "https://jobs.ashbyhq.com/..."],
+  "manual_texts": {
+    "https://jobs.example.com/123": "Pasted JD text here — used when fetch returned thin/failed"
+  }
+}
+```
+
+| Field | Type | Constraints |
+|-------|------|-------------|
+| `urls` | `string[]` | 1–20 items; each must be `https://` and not target a private/loopback IP |
+| `manual_texts` | `object` | Optional; keys must be URLs from the `urls` list; values max 50,000 chars |
+
+**Response `200` — `data.results` array:**
+
+Each element is an `AnalysisResult` dict:
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `url` | string | The input URL |
+| `status` | `"ready"` \| `"thin"` \| `"failed"` | `thin` = page fetched but < 300 chars of visible text; `failed` = HTTP error or extraction failure |
+| `confidence_pct` | integer 0–100 | Claude's self-reported confidence that company and title are correct; 0 when status ≠ `ready` |
+| `already_in_db` | boolean | `true` if the computed `hash_id` exists in `qualified_jobs` or `seen_hashes` |
+| `existing_job` | object \| null | Present when the job already exists in `qualified_jobs`; carries `hash_id`, `company`, `title`, `source`, `status`, `match_pct` from that row |
+| `error_msg` | string \| null | Human-readable error; present when `status="failed"` |
+| `scored_job` | object \| null | Full `ScoredJob` dict (same shape as pipeline-scored jobs) when `status="ready"`; null otherwise |
+
+**Error codes:**
+
+| Code | Status | Trigger |
+|------|--------|---------|
+| `FEATURE_DISABLED` | 404 | `MANUAL_INGEST_ENABLED=false` |
+| `VALIDATION_ERROR` | 422 | `urls` count out of 1–20 range, invalid URL, or `manual_texts` value too long |
+| `CONFIG_ERROR` | 500 | `config/candidate_profile.yaml` not found |
+| `INGEST_ERROR` | 500 | Unexpected error during fetch/extract/score |
+
+### 6.3 `POST /api/ingest/confirm` — Persist confirmed jobs
+
+**Request body:**
+
+```json
+{
+  "jobs": [<ScoredJob dict>, ...]
+}
+```
+
+| Field | Type | Constraints |
+|-------|------|-------------|
+| `jobs` | array | 1–20 items; each must be a valid `ScoredJob`-compatible dict |
+| `jobs[].hash_id` | string | Must match `^[a-f0-9]{16}$` |
+| `jobs[].source` | string | Must be `"manual"` — rejected with `VALIDATION_ERROR` otherwise |
+
+Each job is validated with Pydantic before writing. Jobs whose `hash_id` already exists in `qualified_jobs` are silently skipped (counted as `skipped`). Both `qualified_jobs` and `seen_hashes` are written in a single transaction per job, committed together at the end.
+
+**Response `200`:**
+
+```json
+{ "data": { "ingested": 3, "skipped": 1 }, "meta": { "request_id": "req_..." } }
+```
+
+**Error codes:**
+
+| Code | Status | Trigger |
+|------|--------|---------|
+| `FEATURE_DISABLED` | 404 | `MANUAL_INGEST_ENABLED=false` |
+| `VALIDATION_ERROR` | 422 | `jobs` count out of range, missing/invalid `hash_id`, `source != "manual"`, or Pydantic schema failure |
+| `DB_ERROR` | 500 | SQLite write failed |
+
+---
+
+## 7. Implementation Pointers
 
 - Flask blueprint: `role_scout/dashboard/routes.py`.
 - Register blueprint on the existing Flask app in `role_scout/dashboard/__init__.py::register(app)`.
@@ -1136,7 +1230,7 @@ HTTP/1.1 403 Forbidden
 
 ---
 
-## 7. Open Points (resolve during implementation)
+## 8. Open Points (resolve during implementation)
 
 | # | Question | Owner | Deadline | Pre-decided answer (from source docs) |
 |---|----------|-------|----------|----------------------------------------|

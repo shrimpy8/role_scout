@@ -148,7 +148,35 @@ This runs at most once per DB — the detection check (`"not_a_fit" not in DDL`)
 
 **Not supported.** Additive migrations don't require rollback. If a column turns out to be a mistake, leave it in place, stop writing to it, and delete the reader code. No destructive SQL at migration time, ever.
 
-### 3.4 Sequencing
+### 3.5 Source CHECK constraint migration
+
+Adding `'manual'` to the `source` column's CHECK constraint uses the same backup-swap pattern as the status migration (§3.3). Applied in `src/role_scout/compat/db/connection.py::init_db()` immediately after the status migration block:
+
+```sql
+-- Detection: check whether 'manual' is already in the DDL
+SELECT sql FROM sqlite_master WHERE type='table' AND name='qualified_jobs';
+-- If "'manual'" not in that SQL, rebuild the table.
+```
+
+Rebuild sequence (all steps inside a single transaction; `PRAGMA foreign_keys=OFF` before, `ON` in `finally`):
+
+```sql
+CREATE TABLE qualified_jobs_new AS SELECT * FROM qualified_jobs;
+DROP TABLE qualified_jobs;
+CREATE TABLE qualified_jobs (
+    ...
+    source TEXT NOT NULL CHECK(source IN ('linkedin','google_jobs','trueup','manual')),
+    ...
+);
+-- column list derived from PRAGMA table_info(qualified_jobs_new) — never hardcoded
+INSERT INTO qualified_jobs (col_list) SELECT col_list FROM qualified_jobs_new;
+DROP TABLE qualified_jobs_new;
+-- Recreate all 5 indexes: status, run_id, match_pct DESC, company, scored_at DESC
+```
+
+On failure: `conn.rollback()` + `logger.exception(...)` + re-raise. Detection predicate (`"'manual'" not in DDL`) is idempotent — the block is a no-op on DBs that already have `'manual'`.
+
+### 3.6 Sequencing
 
 Order in `PHASE2_MIGRATIONS` is irrelevant to correctness (each is independent ALTER or CREATE INDEX) but stable for log readability. **New migrations append to the list** — never insert in the middle.
 
@@ -518,6 +546,52 @@ class RunsListResponse(BaseSchema):
     pagination: RunsPagination
 ```
 
+### 4.5 `role_scout/ingest/extractor.py` — Manual ingest data shapes
+
+These are plain `dataclass` types (not Pydantic), defined in `src/role_scout/ingest/extractor.py`.
+
+```python
+@dataclass
+class ExtractedMetadata:
+    """Parsed output from Claude's JD extraction call."""
+    company: str
+    title: str
+    location: str
+    work_model: str           # one of: remote / hybrid / onsite / unknown (normalised)
+    description: str          # cleaned JD text, max 2000 chars
+    comp_range: str | None    # salary range string extracted from JD, or None
+    confidence_pct: int       # 0–100, Claude's self-reported confidence
+
+
+@dataclass
+class ExistingJobInfo:
+    """Details of a matching row already present in qualified_jobs.
+    
+    Populated during dedup check in analyze_urls(); surfaced in AnalysisResult.existing_job
+    so the ingest UI can display "In DB · <source> · <status> · <match_pct>%".
+    """
+    hash_id: str
+    company: str
+    title: str
+    source: str       # the source value stored in qualified_jobs (e.g. "linkedin", "manual")
+    status: str       # job status at time of dedup check (e.g. "reviewed", "applied")
+    match_pct: int
+
+
+@dataclass
+class AnalysisResult:
+    """Per-URL result returned by analyze_urls() and serialised to the /api/ingest/analyze response."""
+    url: str
+    status: Literal["ready", "thin", "failed"]
+    confidence_pct: int = 0
+    already_in_db: bool = False          # True if hash_id in qualified_jobs OR seen_hashes
+    existing_job: ExistingJobInfo | None = field(default=None)  # non-None only when in qualified_jobs
+    scored_job: ScoredJob | None = field(default=None)          # non-None when status="ready"
+    error_msg: str | None = field(default=None)
+```
+
+`AnalysisResult.to_dict()` serialises `existing_job` via `ExistingJobInfo.to_dict()` and `scored_job` via `ScoredJob.model_dump(mode="json")`. The `status` field mirrors `FetchResult.status` for failed/thin URLs and is always `"ready"` when a `scored_job` is present.
+
 ---
 
 ## 5. Field-Level Validation Rules (cross-reference)
@@ -533,7 +607,7 @@ class RunsListResponse(BaseSchema):
 | `status` (job) | `new\|reviewed\|applied\|rejected\|not_a_fit\|not_available` | `JobStatus` |
 | `status` (run) | 6-value enum | `RunStatus` |
 | `trigger_type` | 4-value enum | `TriggerType` |
-| `source` | `linkedin\|google\|trueup` | `SourceName` |
+| `source` | `linkedin\|google_jobs\|trueup\|manual` | `SourceName` (pipeline); `QualifiedJobRow.source` |
 | `tokens` | `ge=0` int | `RunLogRow` |
 | `estimated_cost_usd` | `ge=0` float | `RunLogRow`, `PipelineStatusResponse.cost_so_far_usd` |
 | `tailored_bullets` | 3–10 items, each ≤ 400 chars, non-blank | `TailoredResumeRecord` |

@@ -17,7 +17,7 @@ The Role Scout dashboard is currently read-only for jobs discovered by the autom
 - **Fetch strategy:** Best-effort httpx; if content is too thin (JS-heavy pages), show a per-URL text paste fallback
 - **Scoring:** Same Claude scoring pipeline used by automated discovery (`score_jobs_batch`)
 - **Score threshold:** 0 (no threshold — user has already reviewed the JD and decides what to ingest)
-- **Dedup:** Check `seen_hashes` table; flag duplicates but still allow re-ingest
+- **Dedup:** Check `qualified_jobs` first (surfaces `source`, `status`, `match_pct` via `ExistingJobInfo`); fall back to `seen_hashes` for below-threshold or expired jobs; flag duplicates but still allow re-ingest ✓
 - **Source tracking:** `source='manual'` written to `qualified_jobs` for every manually ingested job
 - **Feature flag:** `MANUAL_INGEST_ENABLED` env var — when `false`, the entire ingest UI disappears; nothing else changes
 - **Prompt injection protection:** Scraped JD content must be sanitised and isolated before being sent to Claude
@@ -58,34 +58,42 @@ JD text scraped from the web may contain adversarial content (e.g. hidden instru
 
 ```
 src/role_scout/
-  config.py                          ← +MANUAL_INGEST_ENABLED
+  config.py                          ← +MANUAL_INGEST_ENABLED ✓
   ingest/
-    __init__.py                      ← new (empty)
-    fetcher.py                       ← new: httpx + BS4
-    extractor.py                     ← new: Claude extraction + analyze orchestration
+    __init__.py                      ← new (stub) ✓
+    fetcher.py                       ← new: httpx + BS4 ✓
+    extractor.py                     ← new: Claude extraction + analyze orchestration ✓
   prompts/
-    ingest_extraction.md             ← new: extraction prompt with injection guard
+    ingest_extraction.md             ← new: extraction prompt with injection guard ✓
   dashboard/
-    routes.py                        ← +GET /ingest, POST /api/ingest/analyze, POST /api/ingest/confirm
+    __init__.py                      ← +manual_ingest_enabled Jinja global ✓
+    routes.py                        ← +GET /ingest, POST /api/ingest/analyze, POST /api/ingest/confirm ✓
     templates/
-      base.html                      ← +topbar link (enabled/disabled state)
-      ingest.html                    ← new: full ingest page
+      base.html                      ← +topbar link (enabled/disabled state) ✓
+      index.html                     ← +manual to source_filters list (post-ship fix) ✓
+      ingest.html                    ← new: full ingest page ✓
     static/js/
-      ingest.js                      ← new: ingest-page-only JS
+      ingest.js                      ← new: ingest-page-only JS ✓
+      init.js                        ← +activeSource into RS_CONFIG (post-ship fix) ✓
   compat/
-    models.py                        ← +"manual" to source Literals
+    models.py                        ← +"manual" to source Literals ✓
     db/
-      connection.py                  ← +source CHECK migration (table rebuild)
+      connection.py                  ← +source CHECK migration (table rebuild) ✓
 
 tests/unit/
-  test_ingest_fetcher.py             ← new
-  test_ingest_extractor.py           ← new
+  test_ingest_fetcher.py             ← new ✓
+  test_ingest_extractor.py           ← new ✓
+
+config/
+  donotapply.yaml                    ← added to git (post-ship fix) ✓
 
 docs/
   INGEST-FEATURE-PLAN.md             ← this file
 ```
 
-**Not touched:** pipeline nodes, `runner.py`, `main.js`, `status.js`, `threshold.js`, `watchlist.js`, `donotapply.js`, `tailor.js`, `banner.js`, `alignment.js`, MCP server, all existing routes.
+**Not touched:** pipeline nodes, `runner.py`, `main.js`, `status.js`, `watchlist.js`, `donotapply.js`, `tailor.js`, `banner.js`, `alignment.js`, MCP server, all existing routes.
+
+**`threshold.js`** was touched post-ship to bypass the threshold filter when a source filter is active (see Post-implementation fixes below).
 
 ---
 
@@ -396,3 +404,16 @@ The 10 real sample URLs provided:
 7. `sqlite3 output/jobsearch.db "SELECT source,company,match_pct FROM qualified_jobs WHERE source='manual';"` — rows present
 8. Set `MANUAL_INGEST_ENABLED=false` in `.env` → topbar shows "Ingest (off)", `/ingest` returns 404
 9. `uv run pytest tests/unit/test_ingest_fetcher.py tests/unit/test_ingest_extractor.py -v` — all pass
+
+---
+
+## Post-implementation Fixes
+
+Bugs found and fixed after the initial ship (commit `c541ec4`):
+
+| Commit | Bug | Fix |
+|--------|-----|-----|
+| `76ef010` | **Manual source filter missing from sidebar.** `index.html` hardcoded `source_filters` to `linkedin / google_jobs / trueup` — manually ingested jobs were invisible unless viewing "All". | Added `manual` to the `source_filters` list in `index.html`. |
+| `11114ae` | **Threshold bypass missing for source filters.** When a source filter (including Manual) was active, the score threshold slider still hid jobs below the threshold, defeating the point of browsing by source. | `index.html` exposes `active_source` in a `data-active-source` attribute; `init.js` reads it into `RS_CONFIG.activeSource`; `threshold.js` skips filtering when `activeSource` is set. |
+| `11114ae` | **Source filter navigation landed on status+source intersection.** Clicking a source filter link also preserved the current status filter, causing an empty result set when, e.g., viewing `status=reviewed` and switching to the Manual source. | Source filter links now navigate with `status=all` so all jobs of that source are visible. |
+| `073d969` | **Since Posted sort broken with mixed date formats.** `posted_date` values are stored as relative strings (`"7 days ago"`), ISO dates (`"2026-04-27"`), and `null` — SQL text sort was meaningless. | Added `_parse_days_since_posted()` to normalise all formats to a numeric day count; when `sort=posted_date`, rows are fetched with `SQL sort=scored_at` (stable) then Python-sorted by the parsed value. `NULL`s always sort last. |
