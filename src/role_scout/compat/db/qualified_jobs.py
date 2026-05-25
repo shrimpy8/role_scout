@@ -7,7 +7,7 @@ from typing import Any
 
 from role_scout.compat.models import ScoredJob
 
-_VALID_SORT_COLS = {"match_pct", "company", "title", "city", "work_model", "company_stage", "status", "scored_at"}
+_VALID_SORT_COLS = {"match_pct", "company", "title", "city", "work_model", "company_stage", "status", "scored_at", "posted_date"}
 _VALID_DIRS = {"asc", "desc"}
 _SELECT_COLS = (
     "hash_id, title, company, location, city, country, work_model, url, apply_url, source, "

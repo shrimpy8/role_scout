@@ -45,7 +45,7 @@ _PAGINATION_DEFAULT_LIMIT = 10
 _JOBS_LISTING_LIMIT = 200
 _MAX_COMPANY_NAME_LENGTH = 100
 _VALID_STATUSES = {"new", "reviewed", "applied", "rejected", "not_a_fit", "not_available"}
-_VALID_SORT_COLS = {"match_pct", "company", "title", "city", "work_model", "company_stage", "status", "scored_at"}
+_VALID_SORT_COLS = {"match_pct", "company", "title", "city", "work_model", "company_stage", "status", "scored_at", "posted_date"}
 _VALID_DIRS = {"asc", "desc"}
 
 _HASH_ID_RE = re.compile(r"^[a-f0-9]{16}$")
