@@ -234,17 +234,24 @@ def tailor_resume(
         bound_log.info("tailor_resume.cache_miss", cache_key=cache_key)
 
     # --- Build Claude prompt ---
+    # System prompt contains only static instructions; untrusted JD/resume data
+    # is passed as XML-delimited content in the user message to prevent prompt injection.
+    system_prompt = prompt_text.replace("{job_title}", job.title or "").replace(
+        "{company}", job.company or ""
+    ).replace("{job_description}", "").replace(
+        "{resume_summary}", ""
+    ).replace("{prompt_version}", prompt_version)
+
     user_message = (
         f"Job Title: {job.title}\n"
         f"Company: {job.company}\n\n"
-        f"JOB DESCRIPTION:\n{job.description or ''}\n\n"
-        f"CANDIDATE RESUME SUMMARY:\n{resume_text}\n"
+        "<job_description>\n"
+        f"{job.description or ''}\n"
+        "</job_description>\n\n"
+        "<resume_summary>\n"
+        f"{resume_text}\n"
+        "</resume_summary>"
     )
-    system_prompt = prompt_text.replace("{job_title}", job.title or "").replace(
-        "{company}", job.company or ""
-    ).replace("{job_description}", job.description or "").replace(
-        "{resume_summary}", resume_text
-    ).replace("{prompt_version}", prompt_version)
 
     # --- Claude call ---
     raw_text, input_tokens, output_tokens = call_claude(

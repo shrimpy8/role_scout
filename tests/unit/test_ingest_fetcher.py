@@ -82,6 +82,8 @@ def _make_mock_response(status_code: int = 200, content: str = _GOOD_HTML):
     mock_resp = MagicMock()
     mock_resp.status_code = status_code
     mock_resp.text = content
+    # is_redirect must be a plain bool so the redirect-following loop terminates.
+    mock_resp.is_redirect = False
     mock_resp.raise_for_status = MagicMock()
     if status_code >= 400:
         import httpx

@@ -5,6 +5,8 @@ All write routes require CSRF token (Flask-WTF).
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import io
 import json
 import re
@@ -100,6 +102,27 @@ def jsonify_ok(data: dict[str, Any], **meta: Any):
         "data": data,
         "meta": {"request_id": getattr(g, "request_id", None), **meta},
     })
+
+
+def jsonify_error(
+    code: str,
+    message: str,
+    status: int = 400,
+    details: list[Any] | None = None,
+) -> tuple[Any, int]:
+    """Return a standard error envelope with request_id (API-SPEC §1.5).
+
+    Always includes ``g.request_id`` so callers can correlate errors with server logs.
+    """
+    return jsonify({
+        "error": {
+            "code": code,
+            "message": message,
+            "details": details or [],
+        },
+        "meta": {"request_id": getattr(g, "request_id", None)},
+    }), status
+
 
 bp = Blueprint("role_scout", __name__, url_prefix="")
 
@@ -251,19 +274,29 @@ def alignment_run(hash_id: str):
         log.exception("alignment_run.file_read_error", hash_id=hash_id)
         return jsonify({"error": {"code": "FILE_ERROR", "message": "Could not read required files", "details": []}}), 500
 
+    # System prompt contains only static instructions; untrusted JD/resume data
+    # is passed as XML-delimited content in the user message to prevent prompt injection.
     system_prompt = Template(prompt_template).safe_substitute(
-        resume_summary=resume_text,
         title=job.title,
         company=job.company,
         source=job.source,
-        description=(job.description or "")[:2000],
+    )
+
+    user_message = (
+        "Analyze this job for alignment with the candidate's resume.\n\n"
+        "<resume_summary>\n"
+        f"{resume_text}\n"
+        "</resume_summary>\n\n"
+        "<job_description>\n"
+        f"{(job.description or '')[:2000]}\n"
+        "</job_description>"
     )
 
     try:
         from role_scout.claude_client import call_claude  # deferred: circular import
         text, _in_tok, _out_tok = call_claude(
             system=system_prompt,
-            user="Analyze this job for alignment with the candidate's resume.",
+            user=user_message,
             api_key=settings.ANTHROPIC_API_KEY,
             model=settings.CLAUDE_MODEL,
             accumulated_cost=0.0,
@@ -966,6 +999,37 @@ def _validate_ingest_url(url: str) -> str | None:
     return None
 
 
+def _sign_job(job: dict[str, Any]) -> dict[str, Any]:
+    """Attach an HMAC-SHA256 signature to *job* so the confirm endpoint can verify integrity.
+
+    The signature covers the canonical JSON (sorted keys, no _sig field) and is
+    computed with the Flask ``SECRET_KEY``.  Returns a shallow copy with ``_sig`` added.
+    """
+    job_copy = {k: v for k, v in job.items() if k != "_sig"}
+    payload = json.dumps(job_copy, sort_keys=True, separators=(",", ":"))
+    secret = current_app.config.get("SECRET_KEY", "")
+    sig = hmac.new(
+        secret.encode() if isinstance(secret, str) else secret,
+        payload.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    return {**job_copy, "_sig": sig}
+
+
+def _verify_job_sig(job: dict[str, Any]) -> bool:
+    """Return True if the HMAC signature on *job* is valid, False otherwise."""
+    sig = job.get("_sig", "")
+    job_without_sig = {k: v for k, v in job.items() if k != "_sig"}
+    payload = json.dumps(job_without_sig, sort_keys=True, separators=(",", ":"))
+    secret = current_app.config.get("SECRET_KEY", "")
+    expected = hmac.new(
+        secret.encode() if isinstance(secret, str) else secret,
+        payload.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(expected, sig)
+
+
 # ---------------------------------------------------------------------------
 # GET /ingest — Manual job ingestion page
 # ---------------------------------------------------------------------------
@@ -999,15 +1063,15 @@ def ingest_analyze():
     manual_texts = body.get("manual_texts", {})
 
     if not isinstance(urls, list) or not (1 <= len(urls) <= _MAX_INGEST_URLS):
-        return jsonify({"error": {"code": "VALIDATION_ERROR", "message": f"urls must be a list of 1–{_MAX_INGEST_URLS} items", "details": []}}), 422
+        return jsonify_error("VALIDATION_ERROR", f"urls must be a list of 1–{_MAX_INGEST_URLS} items", 422)
 
     url_errors = [_validate_ingest_url(u) for u in urls if isinstance(u, str)]
     url_errors = [e for e in url_errors if e]
     if url_errors or any(not isinstance(u, str) for u in urls):
-        return jsonify({"error": {"code": "VALIDATION_ERROR", "message": "One or more URLs are invalid", "details": url_errors[:5]}}), 422
+        return jsonify_error("VALIDATION_ERROR", "One or more URLs are invalid", 422, details=url_errors[:5])
 
     if not isinstance(manual_texts, dict):
-        return jsonify({"error": {"code": "VALIDATION_ERROR", "message": "manual_texts must be an object", "details": []}}), 422
+        return jsonify_error("VALIDATION_ERROR", "manual_texts must be an object", 422)
 
     cleaned_urls = [u.strip() for u in urls]
     cleaned_texts: dict[str, str] = {}
@@ -1015,7 +1079,7 @@ def ingest_analyze():
         if not isinstance(text, str):
             continue
         if len(text) > _MAX_MANUAL_TEXT_CHARS:
-            return jsonify({"error": {"code": "VALIDATION_ERROR", "message": f"manual_texts values must be <= {_MAX_MANUAL_TEXT_CHARS} chars", "details": []}}), 422
+            return jsonify_error("VALIDATION_ERROR", f"manual_texts values must be <= {_MAX_MANUAL_TEXT_CHARS} chars", 422)
         cleaned_texts[url.strip()] = text.strip()
 
     settings = _get_settings()
@@ -1032,17 +1096,27 @@ def ingest_analyze():
             model=settings.CLAUDE_MODEL,
             db_path=str(settings.DB_PATH),
             score_threshold=0,
+            max_cost=settings.MAX_COST_USD,
         )
     except FileNotFoundError:
         log.exception("ingest_analyze.profile_missing")
-        return jsonify({"error": {"code": "CONFIG_ERROR", "message": "Candidate profile not found — ensure config/candidate_profile.yaml exists", "details": []}}), 500
+        return jsonify_error("CONFIG_ERROR", "Candidate profile not found — ensure config/candidate_profile.yaml exists", 500)
     except Exception:
         log.exception("ingest_analyze.error")
-        return jsonify({"error": {"code": "INGEST_ERROR", "message": "Analysis failed — check server logs for details", "details": []}}), 500
+        return jsonify_error("INGEST_ERROR", "Analysis failed — check server logs for details", 500)
 
     ready = sum(1 for r in results if r.status == "ready")
     log.info("ingest_analyze.done", total=len(results), ready=ready)
-    return jsonify_ok({"results": [r.to_dict() for r in results]}), 200
+
+    # Sign each scored_job dict so the confirm endpoint can verify payload integrity.
+    serialised = []
+    for r in results:
+        d = r.to_dict()
+        if d.get("scored_job") is not None:
+            d["scored_job"] = _sign_job(d["scored_job"])
+        serialised.append(d)
+
+    return jsonify_ok({"results": serialised}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -1065,21 +1139,30 @@ def ingest_confirm():
     jobs_raw = body.get("jobs", [])
 
     if not isinstance(jobs_raw, list) or not (1 <= len(jobs_raw) <= _MAX_INGEST_URLS):
-        return jsonify({"error": {"code": "VALIDATION_ERROR", "message": f"jobs must be a list of 1–{_MAX_INGEST_URLS} items", "details": []}}), 422
+        return jsonify_error("VALIDATION_ERROR", f"jobs must be a list of 1–{_MAX_INGEST_URLS} items", 422)
 
     validated_jobs: list[_ScoredJobModel] = []
     for i, raw in enumerate(jobs_raw):
         if not isinstance(raw, dict):
-            return jsonify({"error": {"code": "VALIDATION_ERROR", "message": f"jobs[{i}] must be an object", "details": []}}), 422
-        hash_id = raw.get("hash_id", "")
+            return jsonify_error("VALIDATION_ERROR", f"jobs[{i}] must be an object", 422)
+
+        # Verify HMAC signature before trusting any field values.
+        if not _verify_job_sig(raw):
+            log.warning("ingest_confirm.tampered_payload", index=i)
+            return jsonify_error("TAMPERED_PAYLOAD", f"jobs[{i}] signature verification failed — payload may have been tampered", 422)
+
+        # Strip the signature before model validation — it is not part of ScoredJob schema.
+        raw_clean = {k: v for k, v in raw.items() if k != "_sig"}
+
+        hash_id = raw_clean.get("hash_id", "")
         if not _HASH_ID_RE.match(str(hash_id)):
-            return jsonify({"error": {"code": "VALIDATION_ERROR", "message": f"jobs[{i}].hash_id must be 16 hex chars", "details": []}}), 422
-        if raw.get("source") != "manual":
-            return jsonify({"error": {"code": "VALIDATION_ERROR", "message": f"jobs[{i}].source must be 'manual'", "details": []}}), 422
+            return jsonify_error("VALIDATION_ERROR", f"jobs[{i}].hash_id must be 16 hex chars", 422)
+        if raw_clean.get("source") != "manual":
+            return jsonify_error("VALIDATION_ERROR", f"jobs[{i}].source must be 'manual'", 422)
         try:
-            validated_jobs.append(_ScoredJobModel.model_validate(raw))
+            validated_jobs.append(_ScoredJobModel.model_validate(raw_clean))
         except _PydanticValidationError:
-            return jsonify({"error": {"code": "VALIDATION_ERROR", "message": f"jobs[{i}] failed schema validation", "details": []}}), 422
+            return jsonify_error("VALIDATION_ERROR", f"jobs[{i}] failed schema validation", 422)
 
     log.info("ingest_confirm.start", job_count=len(validated_jobs))
     ingested = 0
@@ -1099,7 +1182,7 @@ def ingest_confirm():
             conn.commit()
     except Exception:
         log.exception("ingest_confirm.db_error")
-        return jsonify({"error": {"code": "DB_ERROR", "message": "Failed to write jobs to database", "details": []}}), 500
+        return jsonify_error("DB_ERROR", "Failed to write jobs to database", 500)
 
     log.info("ingest_confirm.ok", ingested=ingested, skipped=skipped)
     return jsonify_ok({"ingested": ingested, "skipped": skipped}), 200

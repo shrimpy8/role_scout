@@ -79,6 +79,8 @@ def scoring_node(state: JobSearchState) -> dict[str, Any]:
             qualify_threshold=qualify_threshold,
             run_id=run_id,
             model=settings.CLAUDE_MODEL,
+            accumulated_cost=current_cost,
+            max_cost=settings.MAX_COST_USD,
         )
     except Exception as exc:
         bound_log.exception("scoring_failed")

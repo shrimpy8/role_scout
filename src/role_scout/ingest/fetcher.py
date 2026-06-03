@@ -9,6 +9,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from role_scout.compat.logging import get_logger
+from role_scout.ingest.url_safety import SSRFBlockedError, validate_fetchable_url
 
 logger = get_logger(__name__)
 
@@ -96,12 +97,34 @@ def fetch_url(url: str, timeout_s: float = 15.0) -> FetchResult:
     """
     logger.debug("ingest_fetch_start", url=url[:80])
     try:
+        validated_url = validate_fetchable_url(url)
+    except SSRFBlockedError as exc:
+        logger.warning("ingest_fetch_ssrf_blocked", url=url[:80], reason=str(exc)[:200])
+        return FetchResult(url=url, raw_text="", status="failed", error=f"URL blocked: {exc}")
+
+    try:
         with httpx.Client(
             headers={"User-Agent": _USER_AGENT},
-            follow_redirects=True,
+            follow_redirects=False,
             timeout=timeout_s,
         ) as client:
-            response = client.get(url)
+            response = client.get(validated_url)
+            # Manually follow redirects so each hop is validated for SSRF.
+            max_redirects = 5
+            hops = 0
+            while response.is_redirect and hops < max_redirects:
+                redirect_url = response.headers.get("location", "")
+                # Resolve relative redirects against the current URL.
+                if redirect_url and not redirect_url.lower().startswith("http"):
+                    from urllib.parse import urljoin
+                    redirect_url = urljoin(str(response.url), redirect_url)
+                try:
+                    redirect_url = validate_fetchable_url(redirect_url)
+                except SSRFBlockedError as exc:
+                    logger.warning("ingest_fetch_redirect_blocked", url=url[:80], redirect=redirect_url[:80], reason=str(exc)[:200])
+                    return FetchResult(url=url, raw_text="", status="failed", error=f"Redirect blocked: {exc}")
+                response = client.get(redirect_url)
+                hops += 1
             response.raise_for_status()
     except httpx.TimeoutException as exc:
         logger.warning("ingest_fetch_timeout", url=url[:80])
