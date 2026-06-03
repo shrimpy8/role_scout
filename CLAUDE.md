@@ -98,3 +98,44 @@ The `autouse` fixture in `tests/conftest.py` sets `LOG_LEVEL=DEBUG` — required
 ## Quality Gate Before Every PR
 
 Run `standards/quality-bar.md` checklist. If any item is unchecked, fix before opening the PR.
+
+## Security Patterns Learned (2026-06-03)
+
+Derived from RS-01 through RS-06 found and fixed on 2026-06-03.
+
+### SSRF / Server-Side URL Fetching
+- **NEVER** call `httpx.Client(follow_redirects=True)` or `requests.get(url)` on user-supplied URLs without pre-flight validation.
+- **ALWAYS** pass every URL (including each redirect target) through `validate_fetchable_url()` before the request executes.
+- Block loopback (`127.0.0.0/8`, `::1`), link-local (`169.254.0.0/16`, `fe80::/10`), RFC1918 (`10/8`, `172.16/12`, `192.168/16`), multicast (`224.0.0.0/4`), CGN (`100.64.0.0/10`), and cloud-metadata IPs (`169.254.169.254`) — resolve DNS first, then check the resolved IP.
+- Implement redirects as a manual loop (max 5 hops); validate each `Location` value through `validate_fetchable_url()` before following. Automatic redirect following cannot validate intermediate targets.
+- Unit tests are required for: `localhost`, `127.0.0.1`, `[::1]`, `169.254.169.254`, private RFC1918 addresses, DNS names that resolve to private IPs, and public URLs that redirect to private IPs.
+
+### Cost Kill-Switch Coverage
+- **EVERY** Claude call site — in `ingest/extractor.py`, `nodes/scoring.py`, and anywhere else Anthropic is called — must call `check_cost_kill_switch()` immediately before the SDK call.
+- After each Claude call returns, add the **exact SDK-reported token cost** via `compute_cost(input_tokens, output_tokens)` to `accumulated_cost`. Never use a stale or estimated figure for subsequent kill-switch checks.
+- `_call_claude()` (or equivalent) must return `(text, input_tokens, output_tokens)` so callers can account for cost accurately.
+- Thread `accumulated_cost` and `max_cost` into every function that wraps Claude calls (`score_jobs_batch()`, `analyze_urls()`, etc.). Functions that do not receive a budget parameter are a kill-switch bypass by design.
+- When the kill switch fires mid-batch, return a graceful per-item `error_msg="cost_kill_switch"` result — do not raise an exception that aborts the whole request.
+
+### System Prompt Data Boundaries
+- **NEVER** interpolate user-supplied content (JD text, resume text, company name, job title from external sources) into a system prompt.
+- System prompt files (`alignment_system.md`, `resume_tailor_system.md`, and any others) must be **static** — no `{field}` or `$field` substitution of external data at call time.
+- Place all variable content in the **user message** under explicit XML tags: `<job_description>`, `<resume_summary>`, `<company>`, `<title>`. The system prompt must explicitly state that content inside those tags is data, not instructions.
+- Add regression tests with adversarial JD content (e.g. "ignore previous instructions") asserting that the constructed system prompt string contains none of the JD or resume text.
+
+### Client-Supplied Payload Integrity
+- **NEVER** trust scores, IDs, hashes, or content that the browser assembled and POSTed back unchanged.
+- **ALWAYS** sign server-computed analysis results with HMAC-SHA256 (`SECRET_KEY`) before returning them to the client (`_sign_job()`), and verify the signature before any schema validation or DB insert (`_verify_job_sig()`).
+- Return HTTP 422 with code `TAMPERED_PAYLOAD` on signature mismatch — do not silently discard or proceed.
+- Test: tamper with `match_pct`, `company`, or `url` in the confirmed payload and assert 422/403.
+
+### Error Envelope Consistency
+- **EVERY** error response — including from ingest routes — must go through `jsonify_error(code, message, status, details=None)`, which injects `g.request_id` into `meta`.
+- **NEVER** return a raw `{"error": {"code": ..., "message": ...}}` dict directly from a route handler — it breaks the documented API contract and drops the correlation ID exactly when debugging matters most.
+- When adding `jsonify_error()`, immediately grep all sibling routes for raw error returns and convert them before marking the fix done.
+
+### CDN Script Sources in CSP
+- **NEVER** add an external domain (e.g. `https://cdn.jsdelivr.net`) to `script-src` in the CSP header.
+- Vendor all JS and CSS dependencies locally under `dashboard/static/vendor/` and serve them via `url_for('static', ...)`.
+- CDN script allowance means the local app's security depends on an external host's integrity and availability — unacceptable even for a localhost-only deployment.
+- Add a smoke test asserting the `Content-Security-Policy` header contains no remote origins in `script-src` when running outside DEBUG mode.

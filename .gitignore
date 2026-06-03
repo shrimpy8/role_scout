@@ -69,3 +69,6 @@ config/candidate_profile.yaml
 # Legacy paths (kept for safety — no longer used)
 prompts/resume_summary.md
 prompts/candidate_profile.json
+
+# Review artifacts — not committed
+docs/HIGH_PRIORITY_REVIEW_2026-06-03.md

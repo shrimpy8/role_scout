@@ -15,6 +15,7 @@ from role_scout.compat.db.seen_hashes import is_new_job
 from role_scout.compat.logging import get_logger
 from role_scout.compat.models import CandidateProfile, NormalizedJob, ScoredJob
 from role_scout.compat.pipeline.scorer import score_jobs_batch
+from role_scout.cost import CostKillSwitchError, check_cost_kill_switch
 from role_scout.db import ro_conn
 from role_scout.ingest.fetcher import fetch_url
 
@@ -196,13 +197,16 @@ def analyze_urls(
     model: str,
     db_path: str,
     score_threshold: int = 0,
+    max_cost: float = 5.0,
 ) -> list[AnalysisResult]:
     """Fetch, extract metadata, and score a list of JD URLs.
 
     manual_texts: mapping of url → pasted JD text (for thin/failed URLs).
     score_threshold: set to 0 so all scored jobs are returned regardless of match_pct.
+    max_cost: budget cap in USD; each URL checks the kill-switch before calling Claude.
     """
     results: list[AnalysisResult] = []
+    accumulated_cost: float = 0.0
 
     for url in urls:
         logger.info("ingest_analyze_url", url=url[:80])
@@ -230,7 +234,23 @@ def analyze_urls(
 
         # --- Extract metadata ---
         try:
+            check_cost_kill_switch(accumulated_cost, max_cost)
+        except CostKillSwitchError:
+            logger.warning("ingest_cost_kill_switch_extraction", url=url[:80], accumulated_cost=accumulated_cost)
+            results.append(AnalysisResult(
+                url=url,
+                status="failed",
+                error_msg="cost_kill_switch",
+            ))
+            continue
+
+        try:
             meta = extract_metadata(raw_text, url, api_key, model)
+            # Approximate extraction cost: 1024 output + ~2× content input tokens, with 1.5× safety margin.
+            from role_scout.cost import compute_cost
+            estimated_chars = len(raw_text[:_MAX_CONTENT_CHARS])
+            est_input_tokens = int(estimated_chars / 4 * 1.5)
+            accumulated_cost += compute_cost(est_input_tokens, 1024)
         except Exception:
             logger.exception("ingest_extract_failed", url=url[:80])
             results.append(AnalysisResult(
@@ -285,6 +305,17 @@ def analyze_urls(
 
         # --- Score ---
         try:
+            check_cost_kill_switch(accumulated_cost, max_cost)
+        except CostKillSwitchError:
+            logger.warning("ingest_cost_kill_switch_scoring", url=url[:80], accumulated_cost=accumulated_cost)
+            results.append(AnalysisResult(
+                url=url,
+                status="failed",
+                error_msg="cost_kill_switch",
+            ))
+            continue
+
+        try:
             scored_jobs = score_jobs_batch(
                 [norm_job],
                 candidate_profile,
@@ -293,6 +324,8 @@ def analyze_urls(
                 qualify_threshold=score_threshold,
                 run_id=None,
                 model=model,
+                accumulated_cost=accumulated_cost,
+                max_cost=max_cost,
             )
         except Exception:
             logger.exception("ingest_score_failed", url=url[:80])

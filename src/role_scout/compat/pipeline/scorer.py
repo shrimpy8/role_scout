@@ -13,6 +13,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 from role_scout.compat.logging import get_logger
 from role_scout.compat.models import CandidateProfile, NormalizedJob, ScoredJob, ScoreResult
+from role_scout.cost import CostKillSwitchError, check_cost_kill_switch, compute_cost
 
 logger = get_logger(__name__)
 
@@ -86,15 +87,24 @@ def _job_to_scoring_dict(job: NormalizedJob) -> dict:
     wait=wait_exponential(multiplier=1, min=1, max=60),
     reraise=True,
 )
-def _call_claude(client: anthropic.Anthropic, system: str, user: str, model: str = "claude-sonnet-4-6") -> str:
-    """Call Claude API; tenacity retries on rate-limit / server errors."""
+def _call_claude(
+    client: anthropic.Anthropic, system: str, user: str, model: str = "claude-sonnet-4-6"
+) -> tuple[str, int, int]:
+    """Call Claude API; tenacity retries on rate-limit / server errors.
+
+    Returns:
+        (response_text, input_tokens, output_tokens) — callers use the token counts
+        to accumulate cost against the budget.
+    """
     response = client.messages.create(
         model=model,
         max_tokens=_MAX_TOKENS,
         system=system,
         messages=[{"role": "user", "content": user}],
     )
-    return response.content[0].text
+    input_tokens: int = response.usage.input_tokens
+    output_tokens: int = response.usage.output_tokens
+    return response.content[0].text, input_tokens, output_tokens
 
 
 def _parse_batch(raw_text: str, batch: list[NormalizedJob]) -> list[ScoreResult]:
@@ -155,8 +165,15 @@ def score_jobs_batch(
     qualify_threshold: int | None = None,
     run_id: str | None = None,
     model: str = "claude-sonnet-4-6",
+    accumulated_cost: float = 0.0,
+    max_cost: float = float("inf"),
 ) -> list[ScoredJob]:
-    """Score jobs in batches via Claude; return ScoredJobs >= qualify_threshold."""
+    """Score jobs in batches via Claude; return ScoredJobs >= qualify_threshold.
+
+    accumulated_cost / max_cost: budget tracking threaded in from the outer pipeline.
+    The kill-switch is checked before each batch; if it fires, scoring stops early and
+    whatever qualified jobs have been collected so far are returned (no exception raised).
+    """
     if qualify_threshold is None:
         qualify_threshold = 85
 
@@ -177,6 +194,19 @@ def score_jobs_batch(
         batch = jobs[batch_num * batch_size : (batch_num + 1) * batch_size]
         actual_n = len(batch)
 
+        try:
+            check_cost_kill_switch(accumulated_cost, max_cost)
+        except CostKillSwitchError:
+            logger.warning(
+                "score_batch_cost_kill_switch",
+                batch_num=batch_num + 1,
+                n_batches=n_batches,
+                jobs_skipped=len(jobs) - batch_num * batch_size,
+                accumulated_cost=accumulated_cost,
+                run_id=run_id,
+            )
+            break
+
         jobs_payload = [_job_to_scoring_dict(j) for j in batch]
         jobs_json = json.dumps(jobs_payload, ensure_ascii=False)
         system = _build_system_prompt(template, candidate_profile, actual_n, jobs_json)
@@ -190,7 +220,9 @@ def score_jobs_batch(
         )
 
         try:
-            raw_text = _call_claude(client, system, "Score the jobs listed in the system prompt.", model=model)
+            raw_text, call_input_tokens, call_output_tokens = _call_claude(
+                client, system, "Score the jobs listed in the system prompt.", model=model
+            )
         except Exception:
             logger.exception(
                 "score_batch_failed",
@@ -198,6 +230,10 @@ def score_jobs_batch(
                 jobs_lost=actual_n,
             )
             continue
+
+        # Accumulate exact SDK-reported token cost for this batch so the kill-switch
+        # check at the top of the next iteration uses an up-to-date figure.
+        accumulated_cost += compute_cost(call_input_tokens, call_output_tokens)
 
         score_results = _parse_batch(raw_text, batch)
 
