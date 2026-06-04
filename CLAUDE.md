@@ -1,6 +1,8 @@
 # CLAUDE.md — Role Scout
 
-Overrides `~/Documents/GitHub/CLAUDE.md` where they conflict.
+Overrides the parent GitHub-root `CLAUDE.md` where they conflict.
+
+> **Scope:** project-specific decisions, invariants, and gotchas only. General engineering, security, language, and testing standards are handled globally and are not restated here.
 
 ## Project Identity
 
